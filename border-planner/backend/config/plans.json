@@ -1,0 +1,46 @@
+{
+  "plans": [
+    {
+      "id": "baseline",
+      "label": "Baseline (No Deployment)",
+      "peacekeepers": [],
+      "sensors": [],
+      "description": "No additional peacekeeping units or sensor arrays deployed. Only existing baseline police presence in each district."
+    },
+    {
+      "id": "northern_shield",
+      "label": "Northern Shield",
+      "peacekeepers": ["northern_border_town", "eastern_crossing"],
+      "sensors": ["industrial_belt", "university_district", "transit_corridor"],
+      "description": "Peacekeeping units stationed at the two northern border districts — the primary agitation injection points. Sensor arrays cover the three highest-contagion interior districts to provide early warning of cascade."
+    },
+    {
+      "id": "eastern_watch",
+      "label": "Eastern Watch",
+      "peacekeepers": ["eastern_crossing", "western_plateau"],
+      "sensors": ["northern_border_town", "southern_port", "transit_corridor"],
+      "description": "Peacekeeping units guard both east and west border crossings. Sensor coverage on the northern border, the southern port, and the transit corridor for full perimeter awareness."
+    },
+    {
+      "id": "capital_fortress",
+      "label": "Capital Fortress",
+      "peacekeepers": ["capital_north", "capital_south"],
+      "sensors": ["industrial_belt", "university_district", "transit_corridor", "northern_border_town", "eastern_crossing"],
+      "description": "Peacekeeping units protect both Capital districts — the political and economic center. Sensor arrays deployed across all major peripheral districts to detect and warn of incoming unrest before it reaches the capital."
+    },
+    {
+      "id": "distributed_sensors",
+      "label": "Distributed Sensors",
+      "peacekeepers": [],
+      "sensors": ["northern_border_town", "eastern_crossing", "industrial_belt", "university_district", "capital_north", "capital_south", "agricultural_hinterland", "western_plateau", "transit_corridor", "southern_port"],
+      "description": "No physical peacekeeping deployment. Instead, full sensor coverage across all 10 districts. Maximum situational awareness and early warning capability, but no physical deterrence or de-escalation capacity."
+    },
+    {
+      "id": "border_wall",
+      "label": "Border Wall",
+      "peacekeepers": ["northern_border_town", "eastern_crossing", "western_plateau"],
+      "sensors": [],
+      "description": "Peacekeeping units at all three border-adjacent districts. Maximum physical deterrence at the frontier. No sensor coverage in interior districts — relies on border containment preventing any interior cascade."
+    }
+  ]
+}
