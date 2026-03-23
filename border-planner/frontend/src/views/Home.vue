@@ -4,8 +4,8 @@
       <div class="brand">
         <div class="brand-icon">◈</div>
         <div>
-          <h1>BORDER STABILITY PLANNER</h1>
-          <p class="subtitle">Kharaba Border Zone — Peacekeeping Unit Pre-Positioning</p>
+          <h1>CRISIS SIMULATION PLATFORM</h1>
+          <p class="subtitle">Multi-World Agent-Based Crisis Planning</p>
         </div>
       </div>
       <div class="status-badge" :class="{ ready: configLoaded, error: configError }">
@@ -13,49 +13,56 @@
       </div>
     </header>
 
-    <section class="overview">
-      <div class="stat-row">
-        <div class="stat-card">
-          <span class="stat-value">{{ districts.length }}</span>
-          <span class="stat-label">DISTRICTS</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-value">{{ Object.keys(scenarios).length }}</span>
-          <span class="stat-label">SCENARIOS</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-value">{{ Object.keys(plans).length }}</span>
-          <span class="stat-label">DEPLOYMENT PLANS</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="scenarios-section">
-      <h2>SELECT THREAT SCENARIO</h2>
-      <div class="scenario-grid">
+    <div v-if="configLoaded">
+      <!-- World selector -->
+      <div class="worlds-list">
         <div
-          v-for="(sc, id) in scenarios"
-          :key="id"
-          class="scenario-card"
-          @click="$router.push({ name: 'Planner', params: { scenarioId: id } })"
+          v-for="world in worlds"
+          :key="world.id"
+          class="world-block"
+          :class="{ active: selectedWorld === world.id }"
         >
-          <div class="scenario-header">
-            <span class="scenario-tag">{{ sc.intensity?.toUpperCase() || 'UNKNOWN' }}</span>
-            <span class="scenario-duration">{{ sc.time_horizon_hours }}h</span>
+          <!-- World header -->
+          <div class="world-header" @click="selectedWorld = world.id">
+            <div class="world-title-row">
+              <span class="world-icon">{{ world.icon }}</span>
+              <div>
+                <h2 class="world-name">{{ world.name }}</h2>
+                <p class="world-desc">{{ world.description }}</p>
+              </div>
+            </div>
+            <span class="world-toggle">{{ selectedWorld === world.id ? '▲' : '▼' }}</span>
           </div>
-          <h3>{{ sc.name }}</h3>
-          <p>{{ sc.description }}</p>
-          <div class="scenario-meta">
-            <span>Origin: <strong>{{ (sc.injection_districts || []).join(', ') || '—' }}</strong></span>
+
+          <!-- Scenarios for this world (shown when expanded) -->
+          <div class="scenario-grid" v-if="selectedWorld === world.id">
+            <div
+              v-for="sc in world.scenarios"
+              :key="sc.id"
+              class="scenario-card"
+              @click="$router.push({ name: 'Planner', params: { worldId: world.id, scenarioId: sc.id } })"
+            >
+              <div class="scenario-header">
+                <span class="scenario-tag">{{ sc.intensity?.toUpperCase() || 'UNKNOWN' }}</span>
+                <span class="scenario-duration">{{ sc.time_horizon_hours }}h</span>
+              </div>
+              <h3>{{ sc.name }}</h3>
+              <p>{{ sc.description }}</p>
+              <div class="scenario-enter">ANALYZE →</div>
+            </div>
           </div>
-          <div class="scenario-enter">ANALYZE →</div>
         </div>
       </div>
-    </section>
+    </div>
+
+    <div v-else-if="configError" class="error-block">
+      Backend offline — start the Flask server on port 5002.
+    </div>
 
     <footer class="home-footer">
-      <span class="mono">BSP v1.0</span>
-      <span class="mono">LLM-as-Simulator Engine</span>
+      <span class="mono">CSP v2.0</span>
+      <span class="mono">{{ worlds.length }} WORLD{{ worlds.length !== 1 ? 'S' : '' }} LOADED</span>
+      <span class="mono">Multi-Agent LLM Engine</span>
     </footer>
   </div>
 </template>
@@ -64,20 +71,18 @@
 import { ref, onMounted } from 'vue'
 import { getConfig } from '../api/planner'
 
-const districts = ref([])
-const scenarios = ref({})
-const plans = ref({})
+const worlds = ref([])
+const selectedWorld = ref(null)
 const configLoaded = ref(false)
 const configError = ref(false)
-
-const toDict = (arr) => Object.fromEntries(arr.map(item => [item.id, item]))
 
 onMounted(async () => {
   try {
     const data = await getConfig()
-    districts.value = data.districts
-    scenarios.value = toDict(data.scenarios)
-    plans.value = toDict(data.plans)
+    worlds.value = data.worlds || []
+    // Auto-expand the default world
+    const defaultWorld = worlds.value.find(w => w.is_default) || worlds.value[0]
+    if (defaultWorld) selectedWorld.value = defaultWorld.id
     configLoaded.value = true
   } catch (e) {
     configError.value = true
@@ -144,64 +149,87 @@ onMounted(async () => {
   border-color: var(--danger);
 }
 
-.overview { margin-bottom: 2.5rem; }
-.stat-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1.5rem;
-}
-.stat-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 1.5rem;
-  text-align: center;
+/* Worlds */
+.worlds-list {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-}
-.stat-value {
-  font-size: 2.4rem;
-  font-weight: 700;
-  color: var(--accent);
-  font-family: var(--font-mono);
-}
-.stat-label {
-  font-size: 0.75rem;
-  letter-spacing: 0.15em;
-  color: var(--text-muted);
-}
-
-.scenarios-section h2 {
-  font-size: 0.9rem;
-  letter-spacing: 0.15em;
-  color: var(--text-secondary);
-  margin-bottom: 1.2rem;
-}
-
-.scenario-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 1.5rem;
 }
-.scenario-card {
+
+.world-block {
   background: var(--bg-surface);
   border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.world-block.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 20px rgba(0, 232, 123, 0.06);
+}
+
+.world-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.4rem 1.8rem;
+  cursor: pointer;
+  user-select: none;
+}
+.world-header:hover { background: rgba(255,255,255,0.02); }
+
+.world-title-row {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+}
+.world-icon { font-size: 2rem; line-height: 1; }
+.world-name {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+.world-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  max-width: 700px;
+  line-height: 1.4;
+}
+.world-toggle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Scenarios inside a world */
+.scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.2rem;
+  padding: 0 1.5rem 1.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1.2rem;
+}
+.scenario-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 1.5rem;
+  padding: 1.3rem;
   cursor: pointer;
   transition: all 0.2s;
 }
 .scenario-card:hover {
   border-color: var(--accent);
-  box-shadow: 0 0 20px rgba(0, 232, 123, 0.08);
+  box-shadow: 0 0 16px rgba(0, 232, 123, 0.08);
   transform: translateY(-2px);
 }
 .scenario-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.8rem;
+  margin-bottom: 0.7rem;
 }
 .scenario-tag {
   font-family: var(--font-mono);
@@ -209,7 +237,7 @@ onMounted(async () => {
   letter-spacing: 0.12em;
   padding: 0.2rem 0.6rem;
   border-radius: 3px;
-  background: rgba(0, 232, 123, 0.1);
+  background: rgba(0, 232, 123, 0.08);
   color: var(--accent);
   border: 1px solid rgba(0, 232, 123, 0.2);
 }
@@ -219,37 +247,37 @@ onMounted(async () => {
   color: var(--text-muted);
 }
 .scenario-card h3 {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 600;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.5rem;
   color: var(--text-primary);
 }
 .scenario-card p {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   color: var(--text-secondary);
   line-height: 1.5;
-  margin-bottom: 1rem;
-}
-.scenario-meta {
-  display: flex;
-  gap: 1.5rem;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  margin-bottom: 1rem;
-}
-.scenario-meta strong {
-  color: var(--text-primary);
+  margin-bottom: 0.9rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .scenario-enter {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   letter-spacing: 0.12em;
   color: var(--accent);
   opacity: 0;
   transition: opacity 0.2s;
 }
-.scenario-card:hover .scenario-enter {
-  opacity: 1;
+.scenario-card:hover .scenario-enter { opacity: 1; }
+
+.error-block {
+  padding: 2rem;
+  text-align: center;
+  color: var(--danger);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
 }
 
 .home-footer {

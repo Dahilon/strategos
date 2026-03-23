@@ -1,0 +1,24 @@
+{
+  "worlds": [
+    {
+      "id": "kharaba_border",
+      "name": "Kharaba Border Zone",
+      "description": "10-district frontier region along a contested international border. Peacekeeping unit pre-positioning against hostile agitation, communications outage, and economic shock scenarios.",
+      "icon": "🛡️",
+      "time_unit": "hours",
+      "default_scenario": "hostile_agitation_north",
+      "world_context": "Kharaba Border Zone — a frontier region of 10 districts along a contested international border. The central government maintains partial control. Peripheral districts are influenced by cross-border actors.",
+      "is_default": true
+    },
+    {
+      "id": "sf_blackout_2026",
+      "name": "San Francisco Blackout (2026)",
+      "description": "8-zone citywide power outage across real SF neighborhoods and infrastructure. 72-hour cascading crisis involving PG&E, SFPD, BART, hospitals, community organizers, and opportunists.",
+      "icon": "⚡",
+      "time_unit": "hours",
+      "default_scenario": "pgande_main_grid_failure",
+      "world_context": "San Francisco, California — a dense urban city of 875,000 people experiencing a major infrastructure crisis. Multiple agencies, community networks, and private actors compete to restore order, utility services, and public trust during a cascading blackout.",
+      "is_default": false
+    }
+  ]
+}

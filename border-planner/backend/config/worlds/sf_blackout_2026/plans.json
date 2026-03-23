@@ -1,0 +1,46 @@
+{
+  "plans": [
+    {
+      "id": "baseline",
+      "label": "Baseline (Standard Emergency Protocol)",
+      "peacekeepers": ["civic_emergency_center"],
+      "sensors": ["downtown_financial", "civic_emergency_center"],
+      "description": "EOC activated per standard Tier 1 emergency protocols. SFPD and SFFD on elevated readiness. Backup power only at EOC and hospitals per pre-existing agreements. No pre-positioned fuel convoys or enhanced agency coordination. Relies on PG&E self-directed restoration and normal supply chain recovery. Minimal active command coordination across agencies."
+    },
+    {
+      "id": "utility_first",
+      "label": "Utility Restoration Priority",
+      "peacekeepers": ["soma_market", "downtown_financial", "civic_emergency_center"],
+      "sensors": ["downtown_financial", "soma_market", "potrero_hill", "sunset_richmond", "civic_emergency_center"],
+      "description": "PG&E restoration crews pre-deployed at Sunset Substation and 3 key distribution switching stations. Mobile generators staged in SoMa and Civic Center for cell tower priority. Real-time outage telemetry active across 5 zones allows rapid load re-routing. Estimated restoration timeline reduced by 40%. City contracts emergency transformer transport from Fresno (vs. waiting for PG&E regional). Cell and water pump power prioritized to slow information vacuum."
+    },
+    {
+      "id": "hospital_priority",
+      "label": "Hospital & Critical Infrastructure First",
+      "peacekeepers": ["potrero_hill", "civic_emergency_center"],
+      "sensors": ["potrero_hill", "soma_market", "downtown_financial", "civic_emergency_center", "east_bay_transit"],
+      "description": "UCSF Mission Bay and Zuckerberg SF General guaranteed continuous fuel through city contracts — bypassing PG&E queue. Medical supply trucks with police escort pre-positioned. Ambulance services given priority fuel allocation. Regional blood center at Potrero Hill on protected generator circuit. ICU and OR operations fully protected at all 3 major hospitals. EOC coordinates DPH surge capacity. Banking infrastructure in Downtown restored early to enable capital access for emergency purchases."
+    },
+    {
+      "id": "transit_first",
+      "label": "BART & Muni Restoration Priority",
+      "peacekeepers": ["east_bay_transit", "soma_market", "downtown_financial"],
+      "sensors": ["east_bay_transit", "soma_market", "downtown_financial", "potrero_hill"],
+      "description": "Emergency BART transformer procurement from regional stockpile (Caltrans facility, Sacramento) — 18-hour lead time vs 36-hour standard. Muni buses prioritized with city fuel contracts. Emergency shuttle services on Bay Bridge replacing BART. Commuter trunk routes restored first, then neighborhood access. I-80 emergency lane cleared for supply convoy priority. Convoy routing reduces food/medicine delivery delay from 8 hours to 3 hours. Enables hospital supply runs and food store restocking."
+    },
+    {
+      "id": "distributed_mutual_aid",
+      "label": "Distributed Mutual Aid Network",
+      "peacekeepers": [],
+      "sensors": ["mission_district", "soma_market", "inner_sunset_golden_gate", "sunset_richmond"],
+      "description": "No heavy enforcement posture. Municipal resources directed to community leaders: Mission, SoMa, Sunset neighborhood coordinators receive city backing, funding, and radio access. Food distribution hubs established at community centers with city-supplied food reserves. Senior welfare check program coordinated through Nextdoor and SF311. Water distribution trucks dispatched to Sunset and Richmond by community groups. Minimal SFPD visibility. Community resilience maximized — trust in government preserved. Slower infrastructure restoration but higher public cooperation."
+    },
+    {
+      "id": "full_coordination",
+      "label": "Full Cross-Agency Unified Command",
+      "peacekeepers": ["civic_emergency_center", "soma_market", "potrero_hill", "downtown_financial", "mission_district"],
+      "sensors": ["downtown_financial", "soma_market", "mission_district", "potrero_hill", "civic_emergency_center", "east_bay_transit", "sunset_richmond"],
+      "description": "SF EOC activates Unified Command with PG&E, SFPD, SFFD, BART, Muni, DPH, DMH, DSW, Red Cross, and National Guard logistics. Real-time resource tracking dashboard active. Pre-positioned emergency supplies at 6 distribution points. Utility restoration + hospital priority + transit recovery + mutual aid all coordinated simultaneously. Requires all agencies to pre-agree protocols. Maximum resilience outcome. High communication burden — only viable if agencies trained together monthly."
+    }
+  ]
+}

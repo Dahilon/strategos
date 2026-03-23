@@ -3,10 +3,33 @@ import os
 from ..config import Config
 
 
-def load_config(filename):
-    path = os.path.join(Config.CONFIG_DIR, filename)
+def load_config(filename, world_id=None):
+    """Load a config file. If world_id given, loads from worlds/<world_id>/. Otherwise loads from root config/."""
+    if world_id:
+        path = os.path.join(Config.CONFIG_DIR, 'worlds', world_id, filename)
+    else:
+        path = os.path.join(Config.CONFIG_DIR, filename)
     with open(path, 'r') as f:
         return json.load(f)
+
+
+def list_worlds():
+    """Return all available worlds from worlds.json registry."""
+    registry = load_config('worlds.json')
+    worlds = registry['worlds']
+    # Inject scenarios list into each world for the home screen
+    for world in worlds:
+        try:
+            scenarios = load_config('scenarios.json', world['id'])['scenarios']
+            world['scenarios'] = [
+                {'id': s['id'], 'name': s['name'], 'intensity': s.get('intensity', 'medium'),
+                 'time_horizon_hours': s.get('time_horizon_hours', 72),
+                 'description': s.get('description', '')[:200]}
+                for s in scenarios
+            ]
+        except Exception:
+            world['scenarios'] = []
+    return worlds
 
 
 def build_district_prose(districts):
@@ -112,31 +135,35 @@ Every district must appear in every timestep. District IDs must be lowercase_sna
 """
 
 
-def build_simulation_prompt(scenario_id, plan_id):
-    districts_data = load_config("districts.json")["districts"]
-    scenarios_data = load_config("scenarios.json")["scenarios"]
-    plans_data = load_config("plans.json")["plans"]
+def build_simulation_prompt(scenario_id, plan_id, world_id='kharaba_border'):
+    districts_data = load_config('districts.json', world_id)['districts']
+    scenarios_data = load_config('scenarios.json', world_id)['scenarios']
+    plans_data = load_config('plans.json', world_id)['plans']
 
-    districts_lookup = {d["id"]: d for d in districts_data}
-    scenario = next(s for s in scenarios_data if s["id"] == scenario_id)
-    plan = next(p for p in plans_data if p["id"] == plan_id)
+    # Load world context description
+    try:
+        worlds = load_config('worlds.json')['worlds']
+        world_meta = next((w for w in worlds if w['id'] == world_id), {})
+        world_context = world_meta.get('world_context', world_id)
+    except Exception:
+        world_context = world_id
 
-    district_ids = [d["id"] for d in districts_data]
-    hours = list(range(0, scenario["time_horizon_hours"] + 1, 6))
+    districts_lookup = {d['id']: d for d in districts_data}
+    scenario = next(s for s in scenarios_data if s['id'] == scenario_id)
+    plan = next(p for p in plans_data if p['id'] == plan_id)
+
+    district_ids = [d['id'] for d in districts_data]
+    hours = list(range(0, scenario['time_horizon_hours'] + 1, 6))
 
     system_prompt = (
-        "You are a geopolitical simulation engine specializing in civil unrest "
-        "prediction and border stability analysis. You produce realistic, "
-        "internally consistent simulations of how civilian populations respond "
-        "to crises across interconnected districts.\n\n"
+        "You are a crisis simulation engine producing realistic, internally consistent "
+        "simulations of how populations and institutions respond to crises across "
+        "interconnected zones.\n\n"
         "Rules:\n"
-        "- Be realistic. Not every scenario leads to catastrophe. Peacekeepers "
-        "and sensors have real effects.\n"
-        "- Model cascade effects: unrest in connected districts can spread, "
-        "but distance and barriers matter.\n"
-        "- Peacekeepers REDUCE escalation where stationed. Sensors DETECT "
-        "problems earlier, enabling faster response.\n"
-        "- Districts with high economic stress and protest history are more volatile.\n"
+        "- Be realistic. Not every scenario leads to catastrophe. Response assets have real effects.\n"
+        "- Model cascade effects: disruption in connected zones can spread, but distance and barriers matter.\n"
+        "- Pre-positioned resources REDUCE escalation where deployed. Sensors DETECT problems earlier.\n"
+        "- Zones with high economic stress and disruption history are more volatile.\n"
         f"- Use exactly these district IDs: {json.dumps(district_ids)}\n"
         f"- Timeline must cover hours: {json.dumps(hours)}\n"
         "- Each district status must be one of: CALM, TENSE, PROTEST, CRITICAL"
@@ -144,10 +171,7 @@ def build_simulation_prompt(scenario_id, plan_id):
 
     user_prompt = (
         "Simulate the following scenario.\n\n"
-        "WORLD: Kharaba Border Zone\n"
-        "A frontier region of 10 districts along a contested international border. "
-        "The central government maintains partial control. Peripheral districts "
-        "are influenced by cross-border actors.\n\n"
+        f"WORLD: {world_context}\n\n"
         f"{build_district_prose(districts_data)}\n"
         f"SCENARIO: {scenario['name']}\n"
         f"Time horizon: {scenario['time_horizon_hours']} hours.\n"
@@ -158,6 +182,6 @@ def build_simulation_prompt(scenario_id, plan_id):
     )
 
     return [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
+        {'role': 'system', 'content': system_prompt},
+        {'role': 'user', 'content': user_prompt},
     ]

@@ -3,7 +3,7 @@
     <!-- Top bar -->
     <header class="planner-top">
       <div class="top-left">
-        <router-link to="/" class="back-link">← SCENARIOS</router-link>
+        <router-link to="/" class="back-link">← WORLDS</router-link>
         <span class="divider">/</span>
         <span class="scenario-name">{{ scenario?.name || scenarioId }}</span>
       </div>
@@ -167,7 +167,7 @@ import PlanComparison from '../components/PlanComparison.vue'
 import Recommendation from '../components/Recommendation.vue'
 import SystemLog from '../components/SystemLog.vue'
 
-const props = defineProps({ scenarioId: String })
+const props = defineProps({ worldId: String, scenarioId: String })
 
 const districts = ref([])
 const scenarios = ref({})
@@ -230,32 +230,69 @@ function escalationClass(level) {
 
 function actionLabel(actionType) {
   const labels = {
-    // student
+    // border: student
     spread_narrative: 'Narrative spread through network',
     organize_rally: 'Rally organized',
     reach_out_network: 'Peer network activated',
     create_manifesto: 'Statement published',
-    // worker
+    // border: worker
     call_union_meeting: 'Union meeting called',
     stage_walkout: 'Work stoppage initiated',
     warn_coworkers: 'Colleagues alerted',
     lodge_complaint: 'Formal complaint lodged',
-    // trader
+    // border: trader
     alert_trade_network: 'Trade network alerted',
     secure_inventory: 'Inventory secured',
     contact_authorities: 'Authorities contacted',
     reroute_operations: 'Operations rerouted',
-    // authority
+    // border: authority
     deploy_unit: 'Unit deployed',
     establish_cordon: 'Security cordon established',
     issue_statement: 'Official statement issued',
     conduct_patrol: 'Patrol conducted',
     request_reinforcement: 'Reinforcements requested',
-    // agitator
+    // border: agitator
     broadcast_disinformation: 'Disinformation broadcast',
     incite_gathering: 'Gathering incited',
     exploit_grievance: 'Grievance weaponized',
     coordinate_cells: 'Network coordinated',
+    // SF: utility crew
+    dispatch_crews: 'Crews dispatched to grid',
+    energize_substation: 'Substation energized',
+    assess_grid_damage: 'Grid damage assessed',
+    reroute_power: 'Power flow rerouted',
+    request_equipment: 'Equipment requested',
+    // SF: hospital
+    activate_emergency_protocol: 'Emergency protocol activated',
+    allocate_fuel: 'Fuel allocation made',
+    prioritize_patients: 'Patient priority triage',
+    call_for_supplies: 'Supply convoy requested',
+    coordinate_triage: 'Triage coordinated',
+    // SF: transit
+    activate_backup_power: 'Backup power activated',
+    reroute_service: 'Service rerouted',
+    coordinate_shuttles: 'Emergency shuttles coordinated',
+    suspend_line: 'Line suspended',
+    request_fuel: 'Fuel requested from reserves',
+    // SF: EOC
+    issue_city_alert: 'City-wide alert issued',
+    allocate_resources: 'Resources allocated',
+    coordinate_agencies: 'Agencies coordinated',
+    declare_curfew: 'Curfew declared',
+    request_state_aid: 'State/Federal aid requested',
+    // SF: community organizer
+    mobilize_volunteers: 'Volunteers mobilized',
+    organize_food_distribution: 'Food distribution organized',
+    conduct_welfare_checks: 'Welfare checks conducted',
+    coordinate_info_sharing: 'Community info shared',
+    resolve_local_disputes: 'Local dispute resolved',
+    // SF: opportunist
+    broadcast_speculation: 'Speculation broadcast',
+    create_panic_buying: 'Panic buying triggered',
+    exploit_supply_shortage: 'Supply shortage exploited',
+    // shared
+    go_dark: 'Went dark — no activity',
+    do_nothing: 'No action taken',
     // legacy
     post: 'Statement issued',
     organize: 'Action organized',
@@ -266,16 +303,30 @@ function actionLabel(actionType) {
 
 function channelLabel(channel) {
   const labels = {
+    // border world channels
     official_comms: 'OFFICIAL',
     activist_network: 'NETWORK',
     union_channel: 'UNION',
     market_network: 'MARKET',
     underground_broadcast: 'BROADCAST',
+    // SF world channels
+    utility_operations: 'UTILITY OPS',
+    medical_operations: 'MEDICAL',
+    transit_operations: 'TRANSIT OPS',
+    emergency_command: 'EOC',
+    community_network: 'COMMUNITY',
+    // fallback by agent type
     authority: 'OFFICIAL',
     student: 'NETWORK',
     worker: 'UNION',
     trader: 'MARKET',
     agitator: 'BROADCAST',
+    utility_crew: 'UTILITY OPS',
+    hospital_admin: 'MEDICAL',
+    transit_chief: 'TRANSIT OPS',
+    eoc_coordinator: 'EOC',
+    community_organizer: 'COMMUNITY',
+    opportunist: 'BROADCAST',
     general: 'FIELD',
   }
   return labels[channel] || 'FIELD'
@@ -302,7 +353,7 @@ function selectPlan(pid) {
   timeStep.value = 0
 }
 
-watch(() => props.scenarioId, () => {
+watch(() => [props.worldId, props.scenarioId], () => {
   simResults.value = {}
   simScores.value = {}
   comparison.value = null
@@ -316,7 +367,7 @@ async function simulate() {
   timeStep.value = 0
   log(`Running multi-agent simulation: ${props.scenarioId} × ${selectedPlan.value}`)
   try {
-    const data = await runSimulation(props.scenarioId, selectedPlan.value, 'agents')
+    const data = await runSimulation(props.worldId, props.scenarioId, selectedPlan.value, 'agents')
     simResults.value[selectedPlan.value] = data.simulation
     simScores.value[selectedPlan.value] = data.scores
     if (data.simulation?.agent_manifest) {
@@ -334,7 +385,7 @@ async function runFullMatrix() {
   matrixRunning.value = true
   log(`Running full matrix for ${props.scenarioId} [agents]`)
   try {
-    const data = await runMatrix(props.scenarioId, 2, 'agents')
+    const data = await runMatrix(props.worldId, props.scenarioId, 2, 'agents')
     comparison.value = data.ranked_plans || data.comparison
     log(`Matrix complete — Best plan: ${comparison.value?.[0]?.plan_id}`)
   } catch (e) {
@@ -347,7 +398,7 @@ async function runFullMatrix() {
 onMounted(async () => {
   log('Loading configuration…')
   try {
-    const data = await getConfig()
+    const data = await getConfig(props.worldId)
     districts.value = data.districts
     scenarios.value = toDict(data.scenarios)
     plans.value = toDict(data.plans)

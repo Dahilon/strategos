@@ -1,0 +1,28 @@
+{
+  "scenarios": [
+    {
+      "id": "hostile_agitation_north",
+      "name": "Hostile Agitation (North)",
+      "time_horizon_hours": 72,
+      "injection_districts": ["northern_border_town", "eastern_crossing"],
+      "intensity": "high",
+      "description": "At hour 0, external actors launch a coordinated agitation campaign targeting Northern Border Town and Eastern Crossing. Pamphlets and social media posts in local minority language claim the government is planning forced relocations. An estimated 50-100 paid agitators arrive from across the border. Small arms caches are pre-positioned near the border market. Protest gatherings begin at the border market by hour 4, with potential road blockades on the Northern Border Town to Eastern Crossing route by hour 8. Contagion risk to adjacent districts via social media and road networks is HIGH."
+    },
+    {
+      "id": "comms_outage_east",
+      "name": "Communications Outage (East)",
+      "time_horizon_hours": 48,
+      "injection_districts": ["eastern_crossing", "agricultural_hinterland"],
+      "intensity": "medium",
+      "description": "At hour 0, the telecom relay tower serving Eastern Crossing and Agricultural Hinterland goes offline — cause unknown, suspected sabotage. No mobile phone or internet service in Eastern Crossing for 12+ hours. Partial service degradation in Agricultural Hinterland and University District. Rumor propagation shifts from social media to word-of-mouth: slower but impossible to counter digitally. Government cannot push alerts or counter-narratives electronically. Population anxiety spikes because historical precedent is that outages precede military operations. By hour 6, panic buying begins in Eastern Crossing markets."
+    },
+    {
+      "id": "economic_shock_central",
+      "name": "Economic Shock (Central)",
+      "time_horizon_hours": 72,
+      "injection_districts": ["industrial_belt", "capital_south", "transit_corridor"],
+      "intensity": "high",
+      "description": "At hour 0, the government announces a 40% fuel subsidy cut effective immediately. Fuel prices spike in all districts within 6 hours. Industrial Belt and Capital South are hardest hit due to manufacturing and transport dependence. Transit Corridor sees immediate trucking slowdown and potential blockade. Industrial workers mobilize first — factory gate protests by hour 8. Students from University District join solidarity protests by hour 24. Agricultural Hinterland faces delayed impact at 24-48 hours as transport costs cascade to food prices. The economic pain is universal but concentrated in industrial and transit zones."
+    }
+  ]
+}

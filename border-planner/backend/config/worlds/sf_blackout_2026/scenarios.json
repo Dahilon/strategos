@@ -1,0 +1,28 @@
+{
+  "scenarios": [
+    {
+      "id": "pgande_main_grid_failure",
+      "name": "PG&E Main Grid Failure",
+      "time_horizon_hours": 72,
+      "injection_districts": ["soma_market", "downtown_financial", "mission_district"],
+      "intensity": "high",
+      "description": "At hour 0, a catastrophic transmission line failure at the Metcalf Energy Center south of SF triggers an automatic cascading grid shutdown affecting 60% of the Bay Area. Downtown, SoMa, Mission, and Civic Center lose main power instantly. Backup generators activate at UCSF, SF General, and the EOC — but only cover critical loads. Cell towers begin failing within 2 hours as their battery backups drain. ATM and banking systems offline citywide by hour 3. BART enters single-track emergency generator mode by hour 4; Muni buses rerouting. Water pressure dropping across the Sunset and Richmond by hour 12 as pump stations lose power. SF General ER sees 300% surge capacity by hour 6. Looting reported at 7-Eleven locations in SoMa and Mission by hour 8. By hour 24 all grocery stores stripped. PG&E estimates partial restoration in 36 hours, full city restoration in 60-72 hours. National Guard pre-positioning begins at hour 30."
+    },
+    {
+      "id": "targeted_substation_attack",
+      "name": "Targeted Substation Attack (Sunset)",
+      "time_horizon_hours": 72,
+      "injection_districts": ["sunset_richmond", "inner_sunset_golden_gate"],
+      "intensity": "medium",
+      "description": "At hour 0, a transformer explosion destroys the PG&E Sunset Substation at 1390 Sunset Blvd — cause initially unknown, suspected arson or sabotage. 155,000 Sunset and Richmond residents lose power simultaneously. Golden Gate Park shelter zone affected. Backup protocols activate at Civic Center. SFPD Tac unit deploys to substation perimeter and establishes exclusion zone. Fire investigation begins hour 2. By hour 4, neighborhood mutual aid groups mobilize on Nextdoor and WhatsApp — sharing generator locations, identifying vulnerable seniors. PG&E engineering confirms the primary transformer requires 36 hours to replace from Fresno warehouse. By hour 12, social media posts speculate the attack was anti-gentrification retaliation or foreign interference. Seniors in Sunset are at risk: no AC, insulin storage failing, elevator buildings stranded. By hour 24, city deploys 3 mobile power stations (not enough). Community frustration builds — residents blame PG&E deferred infrastructure maintenance. By hour 36, protests at PG&E's SF district office in SoMa."
+    },
+    {
+      "id": "cascading_infrastructure_failure",
+      "name": "Cascading Infrastructure Failure",
+      "time_horizon_hours": 72,
+      "injection_districts": ["east_bay_transit", "soma_market"],
+      "intensity": "high",
+      "description": "At hour 0, a warehouse fire at a West Oakland industrial site causes a power surge that fries the BART Oakland Wye switching transformer. BART halts Bay Area-wide by hour 1. 150,000+ daily commuters stranded. Bay Bridge experiences gridlock within 2 hours as commuters reroute by car. Emergency supply convoys from Sacramento cannot reach SF via I-80 due to gridlock by hour 4. Gas stations in SoMa and Mission run out of fuel by hour 6 as panic-filling begins. By hour 8, fuel shortage cascades to Muni buses and ambulances. By hour 12, food delivery into SF drops 70% — only air and sea routes functional. Warehouse distribution at Port of Oakland partially offline. Downtown food prices spike 40% by hour 18 as speculation grips corner stores. By hour 24, rumors of complete government breakdown spread on X/Telegram. Opportunists in SoMa and Mission exploit panic with false food shortage posts. Hospitals operating but fuel-constrained. Mission mutual aid networks begin coordinating food distribution. BART partial restoration begins hour 36 via emergency transformer swap. Full stabilization hour 48."
+    }
+  ]
+}

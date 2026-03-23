@@ -9,7 +9,7 @@ from .seed_builder import load_config
 from .agent_engine import run_agent_simulation
 
 
-def run_simulation_agents(scenario_id: str, plan_id: str) -> dict:
+def run_simulation_agents(scenario_id: str, plan_id: str, world_id: str = 'kharaba_border') -> dict:
     """
     Run a multi-agent simulation for one scenario + plan combo.
 
@@ -18,18 +18,19 @@ def run_simulation_agents(scenario_id: str, plan_id: str) -> dict:
     plus extra agent fields:
             {agent_manifest, incident_log}
     """
-    districts = load_config("districts.json")["districts"]
-    scenarios = load_config("scenarios.json")["scenarios"]
-    plans = load_config("plans.json")["plans"]
+    districts = load_config('districts.json', world_id)['districts']
+    scenarios = load_config('scenarios.json', world_id)['scenarios']
+    plans = load_config('plans.json', world_id)['plans']
 
-    scenario = next(s for s in scenarios if s["id"] == scenario_id)
-    plan = next(p for p in plans if p["id"] == plan_id)
+    scenario = next(s for s in scenarios if s['id'] == scenario_id)
+    plan = next(p for p in plans if p['id'] == plan_id)
 
     result = run_agent_simulation(
         districts=districts,
         scenario=scenario,
         plan=plan,
         hours_per_round=6,
+        world_id=world_id,
     )
 
     # Validate same shape as monolithic simulator

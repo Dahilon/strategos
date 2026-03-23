@@ -69,9 +69,10 @@ def build_agents(
     districts: List[dict],
     scenario: dict,
     plan: dict,
+    world_id: str = 'kharaba_border',
 ) -> List[AgentProfile]:
     """Build agent profiles from templates + scenario + deployment plan."""
-    templates = load_config("agent_templates.json")
+    templates = load_config("agent_templates.json", world_id)
     agent_types = templates["agent_types"]
     assignments = templates["district_agent_assignments"]
     clauses = templates["deployment_clauses"]
@@ -491,6 +492,7 @@ def run_agent_simulation(
     scenario: dict,
     plan: dict,
     hours_per_round: int = 6,
+    world_id: str = 'kharaba_border',
 ) -> dict:
     """
     Run a full multi-agent simulation.
@@ -499,7 +501,7 @@ def run_agent_simulation(
       {timeline, cascades, final_summary, agent_manifest}
     """
     client = LLMClient()
-    agents = build_agents(districts, scenario, plan)
+    agents = build_agents(districts, scenario, plan, world_id)
     horizon = scenario.get("time_horizon_hours", 72)
     hours = list(range(0, horizon + 1, hours_per_round))
 

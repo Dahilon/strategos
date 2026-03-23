@@ -3,7 +3,7 @@ import os
 import traceback
 from flask import Blueprint, request, jsonify
 from ..config import Config
-from ..services.seed_builder import load_config
+from ..services.seed_builder import load_config, list_worlds
 from ..services.simulator import run_simulation
 from ..services.mirofish_adapter import run_simulation_agents
 from ..services.scorer import score_run, aggregate_runs, compare_plans
@@ -22,22 +22,37 @@ def _check_llm():
 
 @planner_bp.route('/config', methods=['GET'])
 def get_config():
-    """Return districts, scenarios, plans, and agent templates for the frontend."""
-    agent_templates = load_config("agent_templates.json")
-    # Extract just the type metadata for the frontend (no persona templates)
-    agent_types = {
-        k: {"label": v["label"], "icon": v["icon"]}
-        for k, v in agent_templates["agent_types"].items()
-    }
-    return jsonify({
-        "success": True,
-        "data": {
-            "districts": load_config("districts.json")["districts"],
-            "scenarios": load_config("scenarios.json")["scenarios"],
-            "plans": load_config("plans.json")["plans"],
-            "agent_types": agent_types,
+    """Return world list, or full world config if world_id is provided."""
+    world_id = request.args.get('world_id')
+
+    if not world_id:
+        # Home screen: return all available worlds (with their scenarios embedded)
+        return jsonify({
+            'success': True,
+            'data': {
+                'worlds': list_worlds()
+            }
+        })
+
+    # PlannerView: return full config for the requested world
+    try:
+        agent_templates = load_config('agent_templates.json', world_id)
+        agent_types = {
+            k: {'label': v['label'], 'icon': v['icon']}
+            for k, v in agent_templates['agent_types'].items()
         }
-    })
+        return jsonify({
+            'success': True,
+            'data': {
+                'world_id': world_id,
+                'districts': load_config('districts.json', world_id)['districts'],
+                'scenarios': load_config('scenarios.json', world_id)['scenarios'],
+                'plans': load_config('plans.json', world_id)['plans'],
+                'agent_types': agent_types,
+            }
+        })
+    except FileNotFoundError:
+        return jsonify({'success': False, 'error': f'World "{world_id}" not found.'}), 404
 
 
 @planner_bp.route('/simulate', methods=['POST'])
@@ -45,14 +60,15 @@ def simulate():
     """Run a single simulation for one scenario + plan combo.
     Pass mode='agents' for multi-agent simulation."""
     data = request.get_json() or {}
-    scenario_id = data.get("scenario_id")
-    plan_id = data.get("plan_id")
-    mode = data.get("mode", "agents")  # 'monolithic' or 'agents'
+    world_id = data.get('world_id', 'kharaba_border')
+    scenario_id = data.get('scenario_id')
+    plan_id = data.get('plan_id')
+    mode = data.get('mode', 'agents')  # 'monolithic' or 'agents'
 
     if not scenario_id or not plan_id:
         return jsonify({
-            "success": False,
-            "error": "scenario_id and plan_id are required"
+            'success': False,
+            'error': 'scenario_id and plan_id are required'
         }), 400
 
     err = _check_llm()
@@ -60,24 +76,25 @@ def simulate():
         return err
 
     try:
-        if mode == "agents":
-            result = run_simulation_agents(scenario_id, plan_id)
+        if mode == 'agents':
+            result = run_simulation_agents(scenario_id, plan_id, world_id)
         else:
             result = run_simulation(scenario_id, plan_id)
         scores = score_run(result)
         return jsonify({
-            "success": True,
-            "data": {
-                "simulation": result,
-                "scores": scores,
-                "mode": mode,
+            'success': True,
+            'data': {
+                'simulation': result,
+                'scores': scores,
+                'mode': mode,
+                'world_id': world_id,
             }
         })
     except Exception as e:
         return jsonify({
-            "success": False,
-            "error": str(e),
-            "traceback": traceback.format_exc()
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
         }), 500
 
 
@@ -85,22 +102,23 @@ def simulate():
 def run_matrix():
     """Run all plans for a scenario (N runs each). Returns ranked comparison."""
     data = request.get_json() or {}
-    scenario_id = data.get("scenario_id")
-    num_runs = min(data.get("num_runs", 3), 5)  # cap at 5
-    mode = data.get("mode", "agents")
+    world_id = data.get('world_id', 'kharaba_border')
+    scenario_id = data.get('scenario_id')
+    num_runs = min(data.get('num_runs', 3), 5)  # cap at 5
+    mode = data.get('mode', 'agents')
 
     if not scenario_id:
         return jsonify({
-            "success": False,
-            "error": "scenario_id is required"
+            'success': False,
+            'error': 'scenario_id is required'
         }), 400
 
     err = _check_llm()
     if err:
         return err
 
-    sim_fn = run_simulation_agents if mode == "agents" else run_simulation
-    plans = load_config("plans.json")["plans"]
+    sim_fn = (lambda sid, pid: run_simulation_agents(sid, pid, world_id)) if mode == 'agents' else run_simulation
+    plans = load_config('plans.json', world_id)['plans']
     results_by_plan = {}
     raw_runs = {}
 

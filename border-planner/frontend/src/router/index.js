@@ -4,7 +4,7 @@ import PlannerView from '../views/PlannerView.vue'
 
 const routes = [
   { path: '/', name: 'Home', component: Home },
-  { path: '/planner/:scenarioId', name: 'Planner', component: PlannerView, props: true },
+  { path: '/planner/:worldId/:scenarioId', name: 'Planner', component: PlannerView, props: true },
 ]
 
 export default createRouter({
