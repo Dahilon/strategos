@@ -9,6 +9,7 @@
       </div>
       <div class="top-right">
         <span class="status-pill" :class="runStatus">{{ runStatusLabel }}</span>
+        <span v-if="engineStatusLabel" class="status-pill" :class="engineStatusClass">{{ engineStatusLabel }}</span>
       </div>
     </header>
 
@@ -194,6 +195,7 @@ const currentPlanLabel = computed(() => currentPlan.value?.label || selectedPlan
 const currentTimeline = computed(() => simResults.value[selectedPlan.value]?.timeline || [])
 const currentSimulation = computed(() => simResults.value[selectedPlan.value] || null)
 const currentScores = computed(() => simScores.value[selectedPlan.value] || null)
+const currentEngineMeta = computed(() => currentSimulation.value?.engine_meta || null)
 const incidentFeed = computed(() => {
   const incidents = currentSimulation.value?.incident_log || []
   return [...incidents].sort((a, b) => b.hour - a.hour).slice(0, 40)
@@ -343,6 +345,17 @@ const runStatusLabel = computed(() => {
   if (comparison.value) return 'ANALYSIS COMPLETE'
   return 'READY'
 })
+const engineStatusLabel = computed(() => {
+  if (!currentEngineMeta.value) return ''
+  if (currentEngineMeta.value.used_local_fallback) {
+    return `LOCAL FALLBACK (${currentEngineMeta.value.fallback_rounds || 0})`
+  }
+  return 'LLM MODE'
+})
+const engineStatusClass = computed(() => {
+  if (!currentEngineMeta.value) return ''
+  return currentEngineMeta.value.used_local_fallback ? 'fallback' : 'llm'
+})
 
 function log(msg) {
   logs.value.push({ time: new Date().toISOString().slice(11, 19), msg })
@@ -372,6 +385,9 @@ async function simulate() {
     simScores.value[selectedPlan.value] = data.scores
     if (data.simulation?.agent_manifest) {
       agentManifest.value = data.simulation.agent_manifest
+    }
+    if (data.simulation?.engine_meta?.used_local_fallback) {
+      log(`WARNING: Local fallback used in ${data.simulation.engine_meta.fallback_rounds} round(s) due to LLM unavailability/timeout`)
     }
     log(`Simulation complete — Global Risk: ${data.scores?.global_risk?.toFixed(2)} [agents]`)
   } catch (e) {
@@ -466,6 +482,14 @@ onMounted(async () => {
   animation: pulse 1.5s infinite;
 }
 .status-pill.done {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.status-pill.fallback {
+  color: var(--warning);
+  border-color: var(--warning);
+}
+.status-pill.llm {
   color: var(--accent);
   border-color: var(--accent);
 }

@@ -14,6 +14,7 @@ import json
 import random
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field, asdict
+from ..config import Config
 from .llm_client import LLMClient
 from .seed_builder import load_config
 
@@ -262,6 +263,9 @@ BATCH_DECISION_PROMPT = """You are running a multi-agent operational simulation.
 CURRENT WORLD STATE:
 {world_state}
 
+MOST IMPACTFUL RECENT ACTIONS (LAST 12 HOURS):
+{impactful_actions}
+
 AGENTS TO SIMULATE:
 {agent_descriptions}
 
@@ -282,11 +286,125 @@ Rules:
 - Use ONLY an action from that agent's AVAILABLE ACTIONS list. Do not invent new action types.
 - Content must be voiced authentically as that specific person would speak or act.
 - REACT to recent world events: if an agitator called a gathering, students may rally; if a PKU deployed, the agitator should go_dark or back off.
+- When relevant, explicitly react to one of the MOST IMPACTFUL RECENT ACTIONS above (support, counter, exploit, or adapt).
 - Reaction speed matters: fast agents (agitator, student) act immediately and emotionally; deliberate agents (authority) are measured and institutional.
 - Escalation reflects their actual state honestly: clashing = violence occurring, protesting = active confrontation, organizing = mobilizing, grumbling = discontent expressed, calm = no significant concern.
 - A PKU commander does not spread rumors. A trader does not deploy a unit. A student does not establish a cordon. Stay strictly in role.
 - Agitator goes_dark when PKU is present and surveillance is active — strategic self-preservation.
 """
+
+
+def _build_impactful_actions_context(
+    previous_actions: List[AgentAction],
+    hour: int,
+    lookback_hours: int = 12,
+    limit: int = 3,
+) -> str:
+    """Summarize top impactful recent actions so agents can react to one another."""
+    impact_weights = {
+        "calm": 0.0,
+        "grumbling": 0.2,
+        "organizing": 0.5,
+        "protesting": 0.75,
+        "clashing": 1.0,
+    }
+
+    recent = [
+        a for a in previous_actions
+        if a.hour >= max(0, hour - lookback_hours)
+        and a.action_type not in ("do_nothing", "go_dark")
+        and (a.content or "").strip()
+    ]
+    if not recent:
+        return "None yet — crisis is just starting."
+
+    scored = []
+    for a in recent:
+        score = impact_weights.get(a.escalation, 0.0) + min(0.5, abs(a.sentiment) * 0.5)
+        if a.agent_type in ("agitator", "opportunist"):
+            score += 0.2
+        scored.append((score, a))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top = scored[:limit]
+    lines = []
+    for idx, (_, action) in enumerate(top, start=1):
+        snippet = action.content.strip().replace("\n", " ")
+        lines.append(
+            f"{idx}. T+{action.hour}h | {action.agent_name} ({action.agent_type}) in {action.district_id} | "
+            f"{action.action_type} | {action.escalation} | \"{snippet[:180]}\""
+        )
+    return "\n".join(lines)
+
+
+def _pick_available_action(agent: AgentProfile, candidates: List[str]) -> str:
+    """Return the first action that exists in the agent's vocabulary."""
+    for action in candidates:
+        if action in agent.available_actions:
+            return action
+    if "do_nothing" in agent.available_actions:
+        return "do_nothing"
+    if "go_dark" in agent.available_actions:
+        return "go_dark"
+    return agent.available_actions[0] if agent.available_actions else "do_nothing"
+
+
+def _local_fallback_decision(agent: AgentProfile, round_num: int) -> Dict[str, Any]:
+    """Deterministic decision used when LLM calls fail or local mode is forced."""
+    # Simple cadence: early rounds mobilize for non-supportive actors; stabilizing actors coordinate.
+    if agent.agent_type in ("agitator", "opportunist"):
+        action = _pick_available_action(agent, ["broadcast_disinformation", "broadcast_speculation", "incite_gathering", "create_panic_buying", "exploit_supply_shortage"])
+        escalation = "organizing" if round_num < 2 else "protesting"
+        sentiment = -0.65
+        content = f"{agent.name}: amplify instability messaging through {agent.channel}."
+    elif agent.agent_type in ("authority", "eoc_coordinator"):
+        action = _pick_available_action(agent, ["issue_statement", "issue_city_alert", "allocate_resources", "coordinate_agencies", "conduct_patrol"])
+        escalation = "grumbling"
+        sentiment = 0.35
+        content = f"{agent.name}: coordinate response resources and communicate official guidance."
+    elif agent.agent_type in ("hospital_admin",):
+        action = _pick_available_action(agent, ["activate_emergency_protocol", "coordinate_triage", "call_for_supplies", "allocate_fuel"])
+        escalation = "organizing"
+        sentiment = 0.2
+        content = f"{agent.name}: activate medical continuity procedures and triage operations."
+    elif agent.agent_type in ("utility_crew",):
+        action = _pick_available_action(agent, ["dispatch_crews", "assess_grid_damage", "reroute_power", "request_equipment"])
+        escalation = "organizing"
+        sentiment = 0.15
+        content = f"{agent.name}: deploy utility crews and prioritize restoration targets."
+    elif agent.agent_type in ("transit_chief",):
+        action = _pick_available_action(agent, ["activate_backup_power", "reroute_service", "coordinate_shuttles", "request_fuel"])
+        escalation = "organizing"
+        sentiment = 0.1
+        content = f"{agent.name}: adjust transit operations and coordinate alternative routes."
+    elif agent.agent_type in ("student", "community_organizer"):
+        action = _pick_available_action(agent, ["organize_rally", "mobilize_volunteers", "coordinate_info_sharing", "organize_food_distribution", "spread_narrative"])
+        escalation = "organizing"
+        sentiment = -0.05 if agent.stance == "opposing" else 0.05
+        content = f"{agent.name}: mobilize local networks to coordinate public action."
+    elif agent.agent_type in ("worker", "trader"):
+        action = _pick_available_action(agent, ["warn_coworkers", "call_union_meeting", "alert_trade_network", "secure_inventory", "contact_authorities"])
+        escalation = "grumbling" if round_num < 2 else "organizing"
+        sentiment = -0.1
+        content = f"{agent.name}: issue practical warnings through trusted local channels."
+    else:
+        action = _pick_available_action(agent, ["do_nothing"])
+        escalation = "calm"
+        sentiment = 0.0
+        content = ""
+
+    if action in ("do_nothing", "go_dark"):
+        content = ""
+        escalation = "calm"
+        sentiment = 0.0
+
+    return {
+        "agent_id": agent.agent_id,
+        "action_type": action,
+        "content": content,
+        "sentiment": sentiment,
+        "escalation": escalation,
+    }
 
 
 def run_round(
@@ -295,7 +413,8 @@ def run_round(
     world_state: str,
     round_num: int,
     hour: int,
-) -> List[AgentAction]:
+    previous_actions: List[AgentAction],
+) -> (List[AgentAction], bool):
     """Run all agents for one timestep via a SINGLE batched LLM call."""
     # Pre-filter: randomly skip inactive agents
     active_agents = []
@@ -314,7 +433,7 @@ def run_round(
             ))
 
     if not active_agents:
-        return idle_actions
+        return idle_actions, False
 
     # Build agent descriptions for the batch prompt
     agent_lines = []
@@ -330,36 +449,51 @@ def run_round(
 
     prompt = BATCH_DECISION_PROMPT.format(
         world_state=world_state,
+        impactful_actions=_build_impactful_actions_context(previous_actions, hour),
         agent_descriptions=agent_descriptions,
     )
 
-    try:
-        result = client.chat_json(
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=2048,
-        )
-        decisions_raw = result.get("decisions", [])
+    used_fallback = False
+    if Config.SIM_FORCE_LOCAL_DECISIONS:
+        used_fallback = True
+        decisions_raw = [_local_fallback_decision(a, round_num) for a in active_agents]
         decisions_map = {d["agent_id"]: d for d in decisions_raw}
-    except Exception as e:
-        # On failure, all agents do nothing
-        decisions_map = {}
+    else:
+        try:
+            result = client.chat_json(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=2048,
+            )
+            decisions_raw = result.get("decisions", [])
+            decisions_map = {d["agent_id"]: d for d in decisions_raw}
+        except Exception:
+            if Config.SIM_ALLOW_LOCAL_FALLBACK:
+                used_fallback = True
+                decisions_raw = [_local_fallback_decision(a, round_num) for a in active_agents]
+                decisions_map = {d["agent_id"]: d for d in decisions_raw}
+            else:
+                # Preserve legacy behavior: if fallback disabled and LLM fails, agents idle.
+                decisions_map = {}
 
     actions = list(idle_actions)
     for agent in active_agents:
         d = decisions_map.get(agent.agent_id, {})
+        chosen_action = d.get("action_type", "do_nothing")
+        if chosen_action not in agent.available_actions:
+            chosen_action = "do_nothing" if "do_nothing" in agent.available_actions else (agent.available_actions[0] if agent.available_actions else "do_nothing")
         actions.append(AgentAction(
             round_num=round_num, hour=hour,
             agent_id=agent.agent_id, agent_name=agent.name,
             agent_type=agent.agent_type, district_id=agent.district_id,
-            action_type=d.get("action_type", "do_nothing"),
+            action_type=chosen_action,
             content=d.get("content", ""),
             sentiment=float(d.get("sentiment", 0.0)),
             escalation=d.get("escalation", "calm"),
             channel=agent.channel,
         ))
 
-    return actions
+    return actions, used_fallback
 
 
 # ---------------------------------------------------------------------------
@@ -520,6 +654,7 @@ def run_agent_simulation(
     timeline = []
     all_cascades = []
     incident_log = []
+    fallback_rounds = 0
 
     # All district IDs (including ones without agents)
     all_district_ids = [d["id"] for d in districts]
@@ -531,7 +666,16 @@ def run_agent_simulation(
         )
 
         # Each agent decides
-        round_actions = run_round(client, agents, world_state, round_num, hour)
+        round_actions, used_fallback = run_round(
+            client,
+            agents,
+            world_state,
+            round_num,
+            hour,
+            all_actions,
+        )
+        if used_fallback:
+            fallback_rounds += 1
         all_actions.extend(round_actions)
 
         # Detect cascades
@@ -608,6 +752,10 @@ def run_agent_simulation(
         "timeline": timeline,
         "cascades": all_cascades,
         "incident_log": incident_log,
+        "engine_meta": {
+            "fallback_rounds": fallback_rounds,
+            "used_local_fallback": fallback_rounds > 0,
+        },
         "final_summary": {
             "districts_critical": sorted(all_critical),
             "districts_protest": sorted(all_protest),

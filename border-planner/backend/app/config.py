@@ -13,6 +13,8 @@ class Config:
     LLM_MODEL_NAME = os.environ.get('LLM_MODEL_NAME', 'gpt-4o')
     LLM_TIMEOUT_SECONDS = float(os.environ.get('LLM_TIMEOUT_SECONDS', '45'))
     LLM_MAX_RETRIES = int(os.environ.get('LLM_MAX_RETRIES', '1'))
+    SIM_ALLOW_LOCAL_FALLBACK = os.environ.get('SIM_ALLOW_LOCAL_FALLBACK', 'true').lower() == 'true'
+    SIM_FORCE_LOCAL_DECISIONS = os.environ.get('SIM_FORCE_LOCAL_DECISIONS', 'false').lower() == 'true'
 
     CONFIG_DIR = os.path.join(os.path.dirname(__file__), '../config')
     RESULTS_DIR = os.path.join(os.path.dirname(__file__), '../results')
