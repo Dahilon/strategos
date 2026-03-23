@@ -32,6 +32,9 @@ class AgentProfile:
     stance: str              # supportive, opposing, neutral
     activity_level: float    # 0-1
     influence_weight: float  # multiplier
+    available_actions: List[str] = field(default_factory=list)
+    reaction_speed: str = "moderate"   # fast | moderate | deliberate
+    channel: str = "general"           # comms channel label
 
 
 @dataclass
@@ -42,10 +45,11 @@ class AgentAction:
     agent_name: str
     agent_type: str
     district_id: str
-    action_type: str         # post, react, organize, patrol, do_nothing
+    action_type: str         # operational action verb
     content: str             # The text the agent produced
     sentiment: float         # -1 to 1
     escalation: str          # calm, grumbling, organizing, protesting, clashing
+    channel: str = "general" # comms channel
 
 
 @dataclass
@@ -120,6 +124,9 @@ def build_agents(
                 stance=tmpl["default_stance"],
                 activity_level=tmpl["default_activity_level"],
                 influence_weight=tmpl["default_influence_weight"],
+                available_actions=tmpl.get("actions", ["post", "do_nothing"]),
+                reaction_speed=tmpl.get("reaction_speed", "moderate"),
+                channel=tmpl.get("channel", "general"),
             ))
             agent_id += 1
 
@@ -142,6 +149,9 @@ def build_agents(
                 stance="supportive",
                 activity_level=tmpl["default_activity_level"],
                 influence_weight=tmpl["default_influence_weight"],
+                available_actions=tmpl.get("actions", ["deploy_unit", "conduct_patrol", "do_nothing"]),
+                reaction_speed=tmpl.get("reaction_speed", "deliberate"),
+                channel=tmpl.get("channel", "official_comms"),
             ))
             agent_id += 1
 
@@ -178,6 +188,9 @@ def build_agents(
             stance="opposing",
             activity_level=tmpl["default_activity_level"],
             influence_weight=tmpl["default_influence_weight"],
+            available_actions=tmpl.get("actions", ["broadcast_disinformation", "incite_gathering", "go_dark"]),
+            reaction_speed=tmpl.get("reaction_speed", "immediate"),
+            channel=tmpl.get("channel", "underground_broadcast"),
         ))
         agent_id += 1
 
@@ -232,33 +245,35 @@ def build_world_summary(
 # Agent decision — BATCHED: one LLM call per round for all agents
 # ---------------------------------------------------------------------------
 
-BATCH_DECISION_PROMPT = """You are simulating multiple distinct agents in a crisis scenario. Each agent has a unique persona and will independently decide what to do this round.
+BATCH_DECISION_PROMPT = """You are running a multi-agent operational simulation. Each agent has a specific role, persona, and a defined action vocabulary. They observe the same world state but act INDEPENDENTLY based on their own persona, motivations, and reaction speed.
 
 CURRENT WORLD STATE:
 {world_state}
 
-AGENTS TO SIMULATE (each decides independently based on their persona):
+AGENTS TO SIMULATE:
 {agent_descriptions}
 
-For EACH agent, decide their action this round. Respond ONLY with valid JSON:
+For EACH agent, choose ONE action from their available action list. Respond ONLY with valid JSON:
 {{
   "decisions": [
     {{
       "agent_id": <int>,
-      "action_type": "post|organize|patrol|do_nothing",
-      "content": "What they say or do (1-2 sentences). Empty if do_nothing.",
-      "sentiment": <float from -1.0 hostile to 1.0 calm>,
+      "action_type": "<exact action name from that agent's available actions>",
+      "content": "What they specifically say, broadcast, or do — 1-2 sentences, first person, in character. Empty string if do_nothing or go_dark.",
+      "sentiment": <float: -1.0 = maximally hostile/destabilizing, +1.0 = calm/stabilizing>,
       "escalation": "calm|grumbling|organizing|protesting|clashing"
     }}
   ]
 }}
 
 Rules:
-- Each agent decides INDEPENDENTLY based on their own persona.
-- "post" = publicly speak, share info, make demands. "organize" = mobilize people for collective action. "patrol" = security operations (authority only). "do_nothing" = stay quiet.
-- Be true to each persona. A trader won't call for revolution. An agitator won't urge calm.
-- Factor in deployment context (peacekeepers, sensors) from each agent's persona.
-- Agents with lower activity_level are more likely to do_nothing.
+- Use ONLY an action from that agent's AVAILABLE ACTIONS list. Do not invent new action types.
+- Content must be voiced authentically as that specific person would speak or act.
+- REACT to recent world events: if an agitator called a gathering, students may rally; if a PKU deployed, the agitator should go_dark or back off.
+- Reaction speed matters: fast agents (agitator, student) act immediately and emotionally; deliberate agents (authority) are measured and institutional.
+- Escalation reflects their actual state honestly: clashing = violence occurring, protesting = active confrontation, organizing = mobilizing, grumbling = discontent expressed, calm = no significant concern.
+- A PKU commander does not spread rumors. A trader does not deploy a unit. A student does not establish a cordon. Stay strictly in role.
+- Agitator goes_dark when PKU is present and surveillance is active — strategic self-preservation.
 """
 
 
@@ -283,6 +298,7 @@ def run_round(
                 agent_type=agent.agent_type, district_id=agent.district_id,
                 action_type="do_nothing", content="", sentiment=0.0,
                 escalation="calm",
+                channel=agent.channel,
             ))
 
     if not active_agents:
@@ -291,9 +307,12 @@ def run_round(
     # Build agent descriptions for the batch prompt
     agent_lines = []
     for a in active_agents:
+        action_list = ", ".join(a.available_actions) if a.available_actions else "post, do_nothing"
         agent_lines.append(
-            f"AGENT #{a.agent_id} ({a.name}, {a.agent_type} in {a.district_id}):\n"
-            f"  {a.persona[:400]}"
+            f"AGENT #{a.agent_id} \u2014 {a.name} ({a.agent_type}, {a.district_id})\n"
+            f"  PERSONA: {a.persona[:350]}\n"
+            f"  AVAILABLE ACTIONS: {action_list}\n"
+            f"  REACTION SPEED: {a.reaction_speed}"
         )
     agent_descriptions = "\n\n".join(agent_lines)
 
@@ -325,6 +344,7 @@ def run_round(
             content=d.get("content", ""),
             sentiment=float(d.get("sentiment", 0.0)),
             escalation=d.get("escalation", "calm"),
+            channel=agent.channel,
         ))
 
     return actions
@@ -378,7 +398,7 @@ def build_group_statuses(actions: List[AgentAction]) -> List[dict]:
 
     groups = []
     for atype, acts in by_type.items():
-        active = [a for a in acts if a.action_type != "do_nothing"]
+        active = [a for a in acts if a.action_type not in ("do_nothing", "go_dark")]
         avg_sent = sum(a.sentiment for a in acts) / len(acts) if acts else 0
 
         # Pick worst escalation level
@@ -406,7 +426,7 @@ def build_incident_entries(actions: List[AgentAction], districts: List[dict], ho
     incidents = []
 
     for a in actions:
-        if a.action_type == "do_nothing":
+        if a.action_type in ("do_nothing", "go_dark"):
             continue
         incidents.append({
             "hour": hour,
@@ -416,6 +436,7 @@ def build_incident_entries(actions: List[AgentAction], districts: List[dict], ho
             "district_id": a.district_id,
             "district_name": districts_lookup.get(a.district_id, a.district_id),
             "action_type": a.action_type,
+            "channel": a.channel,
             "summary": a.content,
             "sentiment": round(a.sentiment, 2),
             "escalation": a.escalation,

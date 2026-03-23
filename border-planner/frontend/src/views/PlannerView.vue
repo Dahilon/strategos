@@ -129,7 +129,7 @@
               <div class="incident-body">{{ inc.summary || actionLabel(inc.action_type) }}</div>
               <div class="incident-meta">
                 <span>{{ inc.district_name || inc.district_id }}</span>
-                <span class="mono">{{ inc.action_type }}</span>
+                <span class="mono channel-pill" :class="'ch-' + inc.agent_type">{{ channelLabel(inc.channel || inc.agent_type) }}</span>
                 <span class="mono" :class="escalationClass(inc.escalation)">{{ inc.escalation }}</span>
               </div>
             </div>
@@ -230,11 +230,55 @@ function escalationClass(level) {
 
 function actionLabel(actionType) {
   const labels = {
-    post: 'Public statement issued',
-    organize: 'Collective action organized',
-    patrol: 'Security patrol activity',
+    // student
+    spread_narrative: 'Narrative spread through network',
+    organize_rally: 'Rally organized',
+    reach_out_network: 'Peer network activated',
+    create_manifesto: 'Statement published',
+    // worker
+    call_union_meeting: 'Union meeting called',
+    stage_walkout: 'Work stoppage initiated',
+    warn_coworkers: 'Colleagues alerted',
+    lodge_complaint: 'Formal complaint lodged',
+    // trader
+    alert_trade_network: 'Trade network alerted',
+    secure_inventory: 'Inventory secured',
+    contact_authorities: 'Authorities contacted',
+    reroute_operations: 'Operations rerouted',
+    // authority
+    deploy_unit: 'Unit deployed',
+    establish_cordon: 'Security cordon established',
+    issue_statement: 'Official statement issued',
+    conduct_patrol: 'Patrol conducted',
+    request_reinforcement: 'Reinforcements requested',
+    // agitator
+    broadcast_disinformation: 'Disinformation broadcast',
+    incite_gathering: 'Gathering incited',
+    exploit_grievance: 'Grievance weaponized',
+    coordinate_cells: 'Network coordinated',
+    // legacy
+    post: 'Statement issued',
+    organize: 'Action organized',
+    patrol: 'Area patrolled',
   }
-  return labels[actionType] || 'Field action reported'
+  return labels[actionType] || (actionType?.replace(/_/g, ' ') ?? 'Field action')
+}
+
+function channelLabel(channel) {
+  const labels = {
+    official_comms: 'OFFICIAL',
+    activist_network: 'NETWORK',
+    union_channel: 'UNION',
+    market_network: 'MARKET',
+    underground_broadcast: 'BROADCAST',
+    authority: 'OFFICIAL',
+    student: 'NETWORK',
+    worker: 'UNION',
+    trader: 'MARKET',
+    agitator: 'BROADCAST',
+    general: 'FIELD',
+  }
+  return labels[channel] || 'FIELD'
 }
 
 const runStatus = computed(() => {
@@ -655,6 +699,20 @@ onMounted(async () => {
   font-size: 0.62rem;
   color: var(--text-muted);
 }
+
+.channel-pill {
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 2px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+}
+.ch-authority .channel-pill, .ch-authority { color: #38bdf8; }
+.ch-student .channel-pill, .ch-student { color: #a78bfa; }
+.ch-worker .channel-pill, .ch-worker { color: #fb923c; }
+.ch-trader .channel-pill, .ch-trader { color: #facc15; }
+.ch-agitator .channel-pill, .ch-agitator { color: #f87171; }
 
 .risk-low {
   color: #22c55e;
