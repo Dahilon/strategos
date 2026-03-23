@@ -11,6 +11,8 @@ class Config:
     LLM_API_KEY = os.environ.get('LLM_API_KEY')
     LLM_BASE_URL = os.environ.get('LLM_BASE_URL', 'https://api.openai.com/v1')
     LLM_MODEL_NAME = os.environ.get('LLM_MODEL_NAME', 'gpt-4o')
+    LLM_TIMEOUT_SECONDS = float(os.environ.get('LLM_TIMEOUT_SECONDS', '45'))
+    LLM_MAX_RETRIES = int(os.environ.get('LLM_MAX_RETRIES', '1'))
 
     CONFIG_DIR = os.path.join(os.path.dirname(__file__), '../config')
     RESULTS_DIR = os.path.join(os.path.dirname(__file__), '../results')

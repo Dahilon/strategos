@@ -10,9 +10,16 @@ class LLMClient:
         self.api_key = api_key or Config.LLM_API_KEY
         self.base_url = base_url or Config.LLM_BASE_URL
         self.model = model or Config.LLM_MODEL_NAME
+        self.timeout = Config.LLM_TIMEOUT_SECONDS
+        self.max_retries = Config.LLM_MAX_RETRIES
         if not self.api_key:
             raise ValueError("LLM_API_KEY not configured")
-        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        self.client = OpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url,
+            timeout=self.timeout,
+            max_retries=self.max_retries,
+        )
 
     def chat(self, messages, temperature=0.7, max_tokens=4096, response_format=None):
         kwargs = {

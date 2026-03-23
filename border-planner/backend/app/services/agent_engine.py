@@ -131,8 +131,9 @@ def build_agents(
             ))
             agent_id += 1
 
-        # Add authority agent if PKU is deployed here
-        if has_pku:
+        # Add authority agent if PKU is deployed and this world defines authority.
+        # Some worlds (e.g., SF blackout) model command via other types.
+        if has_pku and "authority" in agent_types:
             tmpl = agent_types["authority"]
             idx = agent_id % len(tmpl["names"])
             persona = tmpl["persona_template"].format(
@@ -156,12 +157,22 @@ def build_agents(
             ))
             agent_id += 1
 
-    # Add agitator agents per scenario injection districts
+    # Add destabilizing agents per scenario injection districts.
+    # Border world uses "agitator"; SF world uses "opportunist".
+    injection_type = None
+    if "agitator" in agent_types:
+        injection_type = "agitator"
+    elif "opportunist" in agent_types:
+        injection_type = "opportunist"
+
+    if not injection_type:
+        return agents
+
     for did in scenario.get("injection_districts", []):
         district = districts_lookup.get(did)
         if not district:
             continue
-        tmpl = agent_types["agitator"]
+        tmpl = agent_types[injection_type]
         idx = agent_id % len(tmpl["names"])
 
         has_pku = did in (plan.get("peacekeepers") or [])
@@ -183,7 +194,7 @@ def build_agents(
         agents.append(AgentProfile(
             agent_id=agent_id,
             name=tmpl["names"][idx],
-            agent_type="agitator",
+            agent_type=injection_type,
             district_id=did,
             persona=persona,
             stance="opposing",
