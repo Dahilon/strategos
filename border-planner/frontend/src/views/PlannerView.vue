@@ -26,6 +26,9 @@
           :timeline="currentTimeline"
           :plan="currentPlan"
           :timeStep="timeStep"
+          :agentManifest="agentManifest"
+          :incidentLog="currentSimulation?.incident_log || []"
+          :agentTypes="agentTypes"
         />
         <div class="time-controls" v-if="currentTimeline.length">
           <button class="time-btn" @click="timeStep = Math.max(0, timeStep - 1)" :disabled="timeStep === 0">◀</button>
@@ -385,6 +388,10 @@ async function simulate() {
     simScores.value[selectedPlan.value] = data.scores
     if (data.simulation?.agent_manifest) {
       agentManifest.value = data.simulation.agent_manifest
+    }
+    if (data.simulation?.engine_meta?.agent_count != null) {
+      const meta = data.simulation.engine_meta
+      log(`Agents: ${meta.agent_count} total (base ${meta.base_agent_count}, scale ${meta.agent_scale_factor}x)`)
     }
     if (data.simulation?.engine_meta?.used_local_fallback) {
       log(`WARNING: Local fallback used in ${data.simulation.engine_meta.fallback_rounds} round(s) due to LLM unavailability/timeout`)

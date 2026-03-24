@@ -15,6 +15,8 @@ class Config:
     LLM_MAX_RETRIES = int(os.environ.get('LLM_MAX_RETRIES', '1'))
     SIM_ALLOW_LOCAL_FALLBACK = os.environ.get('SIM_ALLOW_LOCAL_FALLBACK', 'true').lower() == 'true'
     SIM_FORCE_LOCAL_DECISIONS = os.environ.get('SIM_FORCE_LOCAL_DECISIONS', 'false').lower() == 'true'
+    AGENT_SCALE_FACTOR = float(os.environ.get('AGENT_SCALE_FACTOR', '1.0'))
+    AGENT_SCALE_MAX = int(os.environ.get('AGENT_SCALE_MAX', '6'))
 
     CONFIG_DIR = os.path.join(os.path.dirname(__file__), '../config')
     RESULTS_DIR = os.path.join(os.path.dirname(__file__), '../results')

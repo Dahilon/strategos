@@ -210,6 +210,45 @@ def build_agents(
     return agents
 
 
+def expand_agent_population(agents: List[AgentProfile], scale_factor: float) -> List[AgentProfile]:
+    """Expand base agent list into a larger population with slight behavioral variation."""
+    if scale_factor <= 1.0:
+        return agents
+
+    base_scale = int(scale_factor)
+    fractional = scale_factor - base_scale
+    expanded: List[AgentProfile] = []
+    next_agent_id = 0
+
+    for agent in agents:
+        # Keep deterministic-ish variability per agent while preserving diversity.
+        copies = max(1, base_scale)
+        if random.random() < fractional:
+            copies += 1
+
+        for idx in range(copies):
+            activity_jitter = (random.random() - 0.5) * 0.12
+            influence_jitter = (random.random() - 0.5) * 0.18
+            name_suffix = f" #{idx + 1}" if copies > 1 else ""
+
+            expanded.append(AgentProfile(
+                agent_id=next_agent_id,
+                name=f"{agent.name}{name_suffix}",
+                agent_type=agent.agent_type,
+                district_id=agent.district_id,
+                persona=agent.persona,
+                stance=agent.stance,
+                activity_level=max(0.1, min(1.0, agent.activity_level + activity_jitter)),
+                influence_weight=max(0.2, agent.influence_weight + influence_jitter),
+                available_actions=list(agent.available_actions),
+                reaction_speed=agent.reaction_speed,
+                channel=agent.channel,
+            ))
+            next_agent_id += 1
+
+    return expanded
+
+
 # ---------------------------------------------------------------------------
 # World state — tracks what agents can observe
 # ---------------------------------------------------------------------------
@@ -646,7 +685,9 @@ def run_agent_simulation(
       {timeline, cascades, final_summary, agent_manifest}
     """
     client = LLMClient()
-    agents = build_agents(districts, scenario, plan, world_id)
+    base_agents = build_agents(districts, scenario, plan, world_id)
+    scale = max(1.0, min(float(Config.AGENT_SCALE_FACTOR), float(Config.AGENT_SCALE_MAX)))
+    agents = expand_agent_population(base_agents, scale)
     horizon = scenario.get("time_horizon_hours", 72)
     hours = list(range(0, horizon + 1, hours_per_round))
 
@@ -755,6 +796,9 @@ def run_agent_simulation(
         "engine_meta": {
             "fallback_rounds": fallback_rounds,
             "used_local_fallback": fallback_rounds > 0,
+            "agent_scale_factor": round(scale, 2),
+            "base_agent_count": len(base_agents),
+            "agent_count": len(agents),
         },
         "final_summary": {
             "districts_critical": sorted(all_critical),

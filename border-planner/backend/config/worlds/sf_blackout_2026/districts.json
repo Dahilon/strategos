@@ -11,7 +11,8 @@
       "connections": ["soma_market", "mission_district", "east_bay_transit", "civic_emergency_center"],
       "traits": ["banking hub", "telecom backbone", "Comcast & AT&T exchange nodes", "BART Embarcadero", "high foot traffic daytime"],
       "segments": {"office_workers": 0.6, "service_workers": 0.25, "residents": 0.15},
-      "map_position": {"x": 0.58, "y": 0.22}
+      "map_position": {"x": 0.58, "y": 0.22},
+      "geo": {"center": {"lat": 37.7946, "lng": -122.3999}}
     },
     {
       "id": "soma_market",
@@ -24,7 +25,8 @@
       "connections": ["downtown_financial", "mission_district", "potrero_hill", "civic_emergency_center"],
       "traits": ["tech company mid-market offices", "BART Powell & Civic Center stations", "Muni transit hub", "SF General Hospital", "homeless encampments Div St"],
       "segments": {"tech_workers": 0.45, "service_workers": 0.3, "homeless_vulnerable": 0.15, "residents": 0.1},
-      "map_position": {"x": 0.62, "y": 0.42}
+      "map_position": {"x": 0.62, "y": 0.42},
+      "geo": {"center": {"lat": 37.7786, "lng": -122.4059}}
     },
     {
       "id": "mission_district",
@@ -37,7 +39,8 @@
       "connections": ["soma_market", "potrero_hill", "civic_emergency_center"],
       "traits": ["working-class Latino hub", "food desert vulnerability", "laundromats & small business", "Mission Police Station", "activist community networks", "BART 16th & 24th stations"],
       "segments": {"working_class": 0.55, "unemployed": 0.15, "students": 0.15, "residents": 0.15},
-      "map_position": {"x": 0.58, "y": 0.58}
+      "map_position": {"x": 0.58, "y": 0.58},
+      "geo": {"center": {"lat": 37.7599, "lng": -122.4148}}
     },
     {
       "id": "potrero_hill",
@@ -50,7 +53,8 @@
       "connections": ["soma_market", "mission_district", "east_bay_transit"],
       "traits": ["UCSF Mission Bay campus", "SF General Hospital trauma center", "Zuckerberg SF General", "backup generator systems", "regional blood center", "elevated terrain limits access"],
       "segments": {"healthcare_workers": 0.5, "residents": 0.3, "patients": 0.2},
-      "map_position": {"x": 0.67, "y": 0.65}
+      "map_position": {"x": 0.67, "y": 0.65},
+      "geo": {"center": {"lat": 37.7608, "lng": -122.4003}}
     },
     {
       "id": "sunset_richmond",
@@ -63,7 +67,8 @@
       "connections": ["inner_sunset_golden_gate", "civic_emergency_center"],
       "traits": ["dense residential housing", "aging population 30%", "Chinese & Russian immigrant communities", "PG&E Sunset Substation", "car-dependent no BART access", "Richmond Police District"],
       "segments": {"seniors": 0.35, "families": 0.4, "immigrants": 0.25},
-      "map_position": {"x": 0.25, "y": 0.5}
+      "map_position": {"x": 0.25, "y": 0.5},
+      "geo": {"center": {"lat": 37.7565, "lng": -122.4862}}
     },
     {
       "id": "inner_sunset_golden_gate",
@@ -76,7 +81,8 @@
       "connections": ["sunset_richmond", "soma_market"],
       "traits": ["large unhoused population", "Golden Gate Park encampments", "limited service access", "Haight-Ashbury community clinic", "Kezar Stadium shelter potential", "social services hub"],
       "segments": {"homeless": 0.4, "low_income": 0.35, "park_users": 0.25},
-      "map_position": {"x": 0.15, "y": 0.43}
+      "map_position": {"x": 0.15, "y": 0.43},
+      "geo": {"center": {"lat": 37.7676, "lng": -122.4699}}
     },
     {
       "id": "east_bay_transit",
@@ -89,7 +95,8 @@
       "connections": ["downtown_financial", "soma_market", "potrero_hill"],
       "traits": ["BART mainline systems", "Port of Oakland food imports", "warehouse distribution hub", "AC Transit lines", "manufacturing supply chain", "interconnected SF grid dependency"],
       "segments": {"commuters": 0.5, "working_class": 0.3, "residents": 0.2},
-      "map_position": {"x": 0.88, "y": 0.35}
+      "map_position": {"x": 0.88, "y": 0.35},
+      "geo": {"center": {"lat": 37.8044, "lng": -122.2712}}
     },
     {
       "id": "civic_emergency_center",
@@ -102,7 +109,8 @@
       "connections": ["downtown_financial", "soma_market", "mission_district", "sunset_richmond"],
       "traits": ["SF Emergency Operations Center (EOC)", "SFPD headquarters", "City Hall", "Federal Building", "critical backup generators online", "Mayor's office operations", "state coordination link"],
       "segments": {"government_workers": 0.6, "residents": 0.25, "service_workers": 0.15},
-      "map_position": {"x": 0.5, "y": 0.33}
+      "map_position": {"x": 0.5, "y": 0.33},
+      "geo": {"center": {"lat": 37.7793, "lng": -122.4192}}
     }
   ]
 }

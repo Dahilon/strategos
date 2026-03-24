@@ -1,0 +1,126 @@
+{
+  "scenario_id": "pgande_main_grid_failure",
+  "num_runs": 2,
+  "ranked_plans": [
+    {
+      "plan_id": "baseline",
+      "composite_score": 0.4333,
+      "global_risk": 0.1667,
+      "avg_stress": 0.5,
+      "cascade_count": 73.5,
+      "critical_count": 0.5,
+      "district_scores": {
+        "downtown_financial": 0.75,
+        "soma_market": 0.5,
+        "mission_district": 0.5,
+        "potrero_hill": 0.25,
+        "sunset_richmond": 0.5,
+        "inner_sunset_golden_gate": 0.5,
+        "east_bay_transit": 0.5,
+        "civic_emergency_center": 0.5
+      },
+      "risk_reduction_pct": 0.0,
+      "label": "Baseline (Standard Emergency Protocol)"
+    },
+    {
+      "plan_id": "transit_first",
+      "composite_score": 0.4371,
+      "global_risk": 0.1667,
+      "avg_stress": 0.5125,
+      "cascade_count": 69.5,
+      "critical_count": 0.5,
+      "district_scores": {
+        "downtown_financial": 0.35,
+        "soma_market": 0.5,
+        "mission_district": 0.75,
+        "potrero_hill": 0.5,
+        "sunset_richmond": 0.5,
+        "inner_sunset_golden_gate": 0.5,
+        "east_bay_transit": 0.5,
+        "civic_emergency_center": 0.5
+      },
+      "risk_reduction_pct": -0.9,
+      "label": "BART & Muni Restoration Priority"
+    },
+    {
+      "plan_id": "utility_first",
+      "composite_score": 0.4427,
+      "global_risk": 0.1667,
+      "avg_stress": 0.5312,
+      "cascade_count": 78.0,
+      "critical_count": 0.5,
+      "district_scores": {
+        "downtown_financial": 0.75,
+        "soma_market": 0.5,
+        "mission_district": 0.5,
+        "potrero_hill": 0.5,
+        "sunset_richmond": 0.5,
+        "inner_sunset_golden_gate": 0.5,
+        "east_bay_transit": 0.5,
+        "civic_emergency_center": 0.5
+      },
+      "risk_reduction_pct": -2.2,
+      "label": "Utility Restoration Priority"
+    },
+    {
+      "plan_id": "full_coordination",
+      "composite_score": 0.526,
+      "global_risk": 0.3333,
+      "avg_stress": 0.5312,
+      "cascade_count": 72.0,
+      "critical_count": 1.0,
+      "district_scores": {
+        "downtown_financial": 1.0,
+        "soma_market": 0.5,
+        "mission_district": 0.5,
+        "potrero_hill": 0.25,
+        "sunset_richmond": 0.5,
+        "inner_sunset_golden_gate": 0.5,
+        "east_bay_transit": 0.5,
+        "civic_emergency_center": 0.5
+      },
+      "risk_reduction_pct": -21.4,
+      "label": "Full Cross-Agency Unified Command"
+    },
+    {
+      "plan_id": "hospital_priority",
+      "composite_score": 0.5298,
+      "global_risk": 0.3333,
+      "avg_stress": 0.5437,
+      "cascade_count": 77.5,
+      "critical_count": 1.0,
+      "district_scores": {
+        "downtown_financial": 0.35,
+        "soma_market": 0.5,
+        "mission_district": 1.0,
+        "potrero_hill": 0.5,
+        "sunset_richmond": 0.5,
+        "inner_sunset_golden_gate": 0.5,
+        "east_bay_transit": 0.5,
+        "civic_emergency_center": 0.5
+      },
+      "risk_reduction_pct": -22.3,
+      "label": "Hospital & Critical Infrastructure First"
+    },
+    {
+      "plan_id": "distributed_mutual_aid",
+      "composite_score": 0.5354,
+      "global_risk": 0.3333,
+      "avg_stress": 0.5625,
+      "cascade_count": 79.0,
+      "critical_count": 1.0,
+      "district_scores": {
+        "downtown_financial": 0.5,
+        "soma_market": 0.5,
+        "mission_district": 1.0,
+        "potrero_hill": 0.5,
+        "sunset_richmond": 0.5,
+        "inner_sunset_golden_gate": 0.5,
+        "east_bay_transit": 0.5,
+        "civic_emergency_center": 0.5
+      },
+      "risk_reduction_pct": -23.6,
+      "label": "Distributed Mutual Aid Network"
+    }
+  ]
+}
