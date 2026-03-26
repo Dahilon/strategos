@@ -6,7 +6,7 @@ from ..config import Config
 from ..services.seed_builder import load_config, list_worlds
 from ..services.simulator import run_simulation
 from ..services.mirofish_adapter import run_simulation_agents
-from ..services.scorer import score_run, aggregate_runs, compare_plans
+from ..services.scorer import score_run, aggregate_runs, compare_plans, recommend_containment, build_explainability
 
 planner_bp = Blueprint('planner', __name__)
 
@@ -183,3 +183,62 @@ def get_results(scenario_id):
     with open(cache_path, 'r') as f:
         data = json.load(f)
     return jsonify({"success": True, "data": data})
+
+
+@planner_bp.route('/recommend', methods=['POST'])
+def recommend():
+    """Predict best containment plan given current simulation state."""
+    data = request.get_json() or {}
+    world_id = data.get('world_id', 'kharaba_border')
+    sim_result = data.get('simulation')
+
+    if not sim_result:
+        return jsonify({'success': False, 'error': 'simulation payload is required'}), 400
+
+    try:
+        plans = load_config('plans.json', world_id)['plans']
+        recommendation = recommend_containment(sim_result, plans, world_id)
+        return jsonify({
+            'success': True,
+            'data': recommendation,
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
+@planner_bp.route('/explain', methods=['POST'])
+def explain():
+    """Build full explainability payload from simulation results.
+
+    Expects:
+        sim_results_by_plan: {plan_id: [sim_result, ...]}
+        scores_by_plan: {plan_id: [scored_run, ...]}
+        recommended_plan_id: optional string
+        world_id: string
+    """
+    data = request.get_json() or {}
+    world_id = data.get('world_id', 'kharaba_border')
+    sim_results_by_plan = data.get('sim_results_by_plan', {})
+    scores_by_plan = data.get('scores_by_plan', {})
+    recommended_plan_id = data.get('recommended_plan_id')
+
+    if not sim_results_by_plan and not scores_by_plan:
+        return jsonify({'success': False, 'error': 'sim_results_by_plan and scores_by_plan are required'}), 400
+
+    try:
+        plans = load_config('plans.json', world_id)['plans']
+        result = build_explainability(
+            sim_results_by_plan, scores_by_plan, plans,
+            recommended_plan_id=recommended_plan_id,
+        )
+        return jsonify({'success': True, 'data': result})
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500

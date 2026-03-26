@@ -814,6 +814,10 @@ def run_agent_simulation(
                 "type": a.agent_type,
                 "district": a.district_id,
                 "stance": a.stance,
+                "activity_level": round(a.activity_level, 3),
+                "influence_weight": round(a.influence_weight, 3),
+                "channel": a.channel,
+                "reaction_speed": a.reaction_speed,
             }
             for a in agents
         ],

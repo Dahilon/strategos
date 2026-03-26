@@ -1,6 +1,53 @@
 <template>
   <div ref="container" class="district-map">
     <div v-if="mapError" class="map-warning">{{ mapError }}</div>
+    <div v-if="useGeoMode" class="map-controls">
+      <button
+        v-for="mode in modeOptions"
+        :key="mode.id"
+        class="mode-btn"
+        :class="{ active: mapMode === mode.id }"
+        @click="mapMode = mode.id"
+      >
+        {{ mode.label }}
+      </button>
+    </div>
+    <div v-if="useGeoMode && mapMode === 'agents'" class="agent-filters">
+      <label>
+        Type
+        <select v-model="agentTypeFilter">
+          <option value="all">All</option>
+          <option v-for="opt in agentTypeOptions" :key="opt" :value="opt">{{ opt }}</option>
+        </select>
+      </label>
+      <label>
+        Channel
+        <select v-model="channelFilter">
+          <option value="all">All</option>
+          <option v-for="opt in channelOptions" :key="opt" :value="opt">{{ opt }}</option>
+        </select>
+      </label>
+      <label>
+        Escalation
+        <select v-model="escalationFilter">
+          <option value="all">All</option>
+          <option v-for="opt in escalationOptions" :key="opt" :value="opt">{{ opt }}</option>
+        </select>
+      </label>
+      <button class="clear-filter-btn" @click="resetAgentFilters">Reset</button>
+      <span class="filter-divider">|</span>
+      <button class="preset-chip" :class="{ active: activePreset === 'responders' }" @click="applyPreset('responders')">Responders</button>
+      <button class="preset-chip" :class="{ active: activePreset === 'disruptors' }" @click="applyPreset('disruptors')">Disruptors</button>
+      <button class="preset-chip" :class="{ active: activePreset === 'high-risk' }" @click="applyPreset('high-risk')">High Risk</button>
+    </div>
+    <div v-if="useGeoMode" class="map-legend">
+      <div class="legend-title">{{ activeLegend.title }}</div>
+      <div class="legend-note">{{ activeLegend.note }}</div>
+      <div v-for="(item, idx) in activeLegend.items" :key="idx" class="legend-row">
+        <span class="legend-swatch" :style="item.swatch"></span>
+        <span class="legend-label">{{ item.label }}</span>
+      </div>
+    </div>
     <div
       v-if="selectedAgentInfo"
       class="agent-tooltip"
@@ -14,7 +61,10 @@
       <div class="agent-meta-grid">
         <div><span class="meta-k">Type</span><span class="meta-v">{{ selectedAgentInfo.type }}</span></div>
         <div><span class="meta-k">District</span><span class="meta-v">{{ selectedAgentInfo.district }}</span></div>
+        <div><span class="meta-k">Channel</span><span class="meta-v">{{ selectedAgentInfo.channel || '—' }}</span></div>
         <div><span class="meta-k">Stance</span><span class="meta-v">{{ selectedAgentInfo.stance }}</span></div>
+        <div><span class="meta-k">Influence</span><span class="meta-v">{{ selectedAgentInfluence }}</span></div>
+        <div><span class="meta-k">Activity</span><span class="meta-v">{{ selectedAgentActivity }}</span></div>
         <div><span class="meta-k">Events</span><span class="meta-v">{{ selectedAgentHistory.length }}</span></div>
       </div>
       <div v-if="selectedAgentHistory.length" class="tt-posts">
@@ -53,6 +103,14 @@
         </div>
       </div>
       <div v-else class="tt-empty">No active agents</div>
+      <div v-if="districtTrend.length > 1" class="tt-sparkline">
+        <span class="tt-spark-label">Trend ({{ districtTrend.length }} steps)</span>
+        <svg :width="sparkW" :height="sparkH" class="sparkline-svg">
+          <path :d="sparkPath" fill="none" stroke="#60a5fa" stroke-width="1.5" />
+          <circle :cx="sparkLastX" :cy="sparkLastY" r="2.5" :fill="sparkLastColor" />
+        </svg>
+        <span class="tt-spark-dir" :style="{ color: sparkLastColor }">{{ sparkDirection }}</span>
+      </div>
       <div v-if="selectedPosts.length" class="tt-posts">
         <div v-for="(post, i) in selectedPosts" :key="i" class="tt-post">"{{ post }}"</div>
       </div>
@@ -80,12 +138,28 @@ const selectedDistrict = ref(null)
 const selectedAgent = ref(null)
 const tooltipPos = ref({ x: 0, y: 0 })
 const mapError = ref('')
+const mapMode = ref('district')
+const agentTypeFilter = ref('all')
+const channelFilter = ref('all')
+const escalationFilter = ref('all')
+const activePreset = ref(null)
 let svg = null
 let map = null
 let mapReady = false
 let resizeObserver = null
 
 const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN || ''
+const modeOptions = [
+  { id: 'district', label: 'Districts' },
+  { id: 'agents', label: 'Agents' },
+  { id: 'thermal', label: 'Thermal' },
+]
+
+const escalationOptions = ['calm', 'grumbling', 'organizing', 'protesting', 'clashing']
+
+const RESPONDER_TYPES = new Set(['utility_crew', 'hospital_admin', 'transit_chief', 'eoc_coordinator', 'authority'])
+const DISRUPTOR_TYPES = new Set(['opportunist', 'agitator'])
+const HIGH_RISK_ESCALATIONS = new Set(['organizing', 'protesting', 'clashing'])
 
 const selectedDistrictName = computed(() => {
   if (!selectedDistrict.value) return ''
@@ -111,6 +185,60 @@ const selectedPosts = computed(() => {
   return posts.slice(0, 3)
 })
 
+const sparkW = 120
+const sparkH = 28
+
+const districtTrend = computed(() => {
+  if (!selectedDistrict.value || !props.timeline.length) return []
+  return props.timeline.map((step) => {
+    const info = step?.districts?.[selectedDistrict.value]
+    return computeDistrictDistress(info)
+  })
+})
+
+const sparkPath = computed(() => {
+  const d = districtTrend.value
+  if (d.length < 2) return ''
+  const xStep = sparkW / (d.length - 1)
+  return d.map((v, i) => {
+    const x = i * xStep
+    const y = sparkH - v * (sparkH - 4) - 2
+    return (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1)
+  }).join(' ')
+})
+
+const sparkLastX = computed(() => {
+  const d = districtTrend.value
+  return d.length > 1 ? sparkW : 0
+})
+
+const sparkLastY = computed(() => {
+  const d = districtTrend.value
+  if (d.length < 1) return sparkH / 2
+  const last = d[d.length - 1]
+  return sparkH - last * (sparkH - 4) - 2
+})
+
+const sparkLastColor = computed(() => {
+  const d = districtTrend.value
+  if (d.length < 2) return '#60a5fa'
+  const last = d[d.length - 1]
+  const prev = d[d.length - 2]
+  if (last > prev + 0.05) return '#ef4444'
+  if (last < prev - 0.05) return '#22c55e'
+  return '#eab308'
+})
+
+const sparkDirection = computed(() => {
+  const d = districtTrend.value
+  if (d.length < 2) return ''
+  const last = d[d.length - 1]
+  const prev = d[d.length - 2]
+  if (last > prev + 0.05) return '▲ Worsening'
+  if (last < prev - 0.05) return '▼ Improving'
+  return '— Stable'
+})
+
 const selectedAgentInfo = computed(() => {
   if (selectedAgent.value == null) return null
   return props.agentManifest.find(a => a.agent_id === selectedAgent.value) || null
@@ -129,6 +257,77 @@ const selectedAgentHistory = computed(() => {
     .slice(0, 5)
 })
 
+const agentTypeOptions = computed(() => {
+  return [...new Set((props.agentManifest || []).map(a => a.type).filter(Boolean))].sort()
+})
+
+const channelOptions = computed(() => {
+  return [...new Set((props.agentManifest || []).map(a => a.channel).filter(Boolean))].sort()
+})
+
+const selectedAgentInfluence = computed(() => {
+  if (!selectedAgentInfo.value) return '—'
+  const raw = Number(selectedAgentInfo.value.influence_weight)
+  if (Number.isNaN(raw)) return '—'
+  return raw.toFixed(2)
+})
+
+const selectedAgentActivity = computed(() => {
+  if (!selectedAgentInfo.value) return '—'
+  const raw = Number(selectedAgentInfo.value.activity_level)
+  if (Number.isNaN(raw)) return '—'
+  return raw.toFixed(2)
+})
+
+const latestIncidentByAgent = computed(() => {
+  const mapByAgent = new Map()
+  for (const event of (props.incidentLog || [])) {
+    const id = event?.agent_id
+    if (id == null) continue
+    const prev = mapByAgent.get(id)
+    if (!prev || Number(event.hour || 0) >= Number(prev.hour || 0)) {
+      mapByAgent.set(id, event)
+    }
+  }
+  return mapByAgent
+})
+
+const activeLegend = computed(() => {
+  if (mapMode.value === 'thermal') {
+    return {
+      title: 'Thermal Distress View',
+      note: 'Large hot zones indicate higher district stress from status + group escalation.',
+      items: [
+        { label: 'Low pressure', swatch: { background: '#22c55e' } },
+        { label: 'Rising tension', swatch: { background: '#eab308' } },
+        { label: 'Severe unrest', swatch: { background: '#ef4444' } },
+      ],
+    }
+  }
+  if (mapMode.value === 'agents') {
+    const total = (props.agentManifest || []).length
+    const visible = buildAgentGeoJSON().features.length
+    return {
+      title: 'Agent Activity View',
+      note: `Tiny circles are individual agents. Showing ${visible}/${total}. Size = influence. Opacity = activity. White halo = recent escalation.`,
+      items: [
+        { label: 'Infrastructure roles', swatch: { background: '#60a5fa' } },
+        { label: 'Community roles', swatch: { background: '#f472b6' } },
+        { label: 'Hostile/disruptive actors', swatch: { background: '#ef4444' } },
+      ],
+    }
+  }
+  return {
+    title: 'District Status View',
+    note: 'Large circles are districts. Color reflects current status; overlays show sensors and peacekeepers.',
+    items: [
+      { label: 'Calm', swatch: { background: '#22c55e' } },
+      { label: 'Tense / Protest', swatch: { background: 'linear-gradient(90deg,#eab308,#f97316)' } },
+      { label: 'Critical', swatch: { background: '#ef4444' } },
+    ],
+  }
+})
+
 const STATUS_COLORS = {
   CALM: '#22c55e',
   TENSE: '#eab308',
@@ -145,6 +344,57 @@ function getDistrictStatus(districtId) {
 
 function statusColor(status) {
   return STATUS_COLORS[status] || '#555570'
+}
+
+function distressFromStatus(status) {
+  if (status === 'CRITICAL') return 1
+  if (status === 'PROTEST') return 0.72
+  if (status === 'TENSE') return 0.46
+  return 0.2
+}
+
+function computeDistrictDistress(info) {
+  if (!info) return 0.1
+  const groups = Array.isArray(info.groups) ? info.groups : []
+  const avgSentiment = groups.length
+    ? groups.reduce((sum, g) => sum + Math.min(1, Math.abs(Number(g.sentiment || 0))), 0) / groups.length
+    : 0
+  const escalatedGroups = groups.filter(g => ['organizing', 'protesting', 'clashing'].includes(g?.escalation_level)).length
+  const escalationFactor = groups.length ? escalatedGroups / groups.length : 0
+  const base = distressFromStatus(info.status)
+  return Math.max(0.05, Math.min(1, base * 0.65 + avgSentiment * 0.2 + escalationFactor * 0.15))
+}
+
+function escalationLevelScore(escalation) {
+  if (escalation === 'clashing') return 1
+  if (escalation === 'protesting') return 0.78
+  if (escalation === 'organizing') return 0.55
+  if (escalation === 'grumbling') return 0.35
+  return 0.12
+}
+
+function normalizeEscalation(escalation) {
+  if (!escalation) return 'calm'
+  return String(escalation).toLowerCase()
+}
+
+function resetAgentFilters() {
+  agentTypeFilter.value = 'all'
+  channelFilter.value = 'all'
+  escalationFilter.value = 'all'
+  activePreset.value = null
+}
+
+function applyPreset(preset) {
+  if (activePreset.value === preset) {
+    resetAgentFilters()
+    return
+  }
+  activePreset.value = preset
+  channelFilter.value = 'all'
+  escalationFilter.value = 'all'
+  agentTypeFilter.value = 'all'
+  // Presets are applied inside buildAgentGeoJSON via activePreset
 }
 
 const useGeoMode = computed(() => {
@@ -185,6 +435,7 @@ function buildDistrictPointGeoJSON() {
             name: d.name,
             short: shortLabel(d.name),
             status: info?.status || 'CALM',
+            distress: computeDistrictDistress(info),
             hasPKU,
             hasSensor,
           },
@@ -230,6 +481,18 @@ function buildAgentGeoJSON() {
       const radius = 0.003 + r * 0.0025
       const lng = district.geo.center.lng + Math.cos(angle) * radius
       const lat = district.geo.center.lat + Math.sin(angle) * radius
+      const incident = latestIncidentByAgent.value.get(agent.agent_id)
+      const influence = Number(agent.influence_weight ?? 0.5)
+      const activity = Number(agent.activity_level ?? 0.5)
+      const escalation = normalizeEscalation(incident?.escalation)
+      const escalationScore = escalationLevelScore(escalation)
+
+      if (agentTypeFilter.value !== 'all' && agent.type !== agentTypeFilter.value) return null
+      if (channelFilter.value !== 'all' && (agent.channel || '') !== channelFilter.value) return null
+      if (escalationFilter.value !== 'all' && escalation !== escalationFilter.value) return null
+      if (activePreset.value === 'responders' && !RESPONDER_TYPES.has(agent.type)) return null
+      if (activePreset.value === 'disruptors' && !DISRUPTOR_TYPES.has(agent.type)) return null
+      if (activePreset.value === 'high-risk' && !HIGH_RISK_ESCALATIONS.has(escalation)) return null
 
       return {
         type: 'Feature',
@@ -240,6 +503,11 @@ function buildAgentGeoJSON() {
           type: agent.type,
           district: agent.district,
           stance: agent.stance,
+          channel: agent.channel || '',
+          influence: Number.isNaN(influence) ? 0.5 : Math.max(0, Math.min(1, influence)),
+          activity: Number.isNaN(activity) ? 0.5 : Math.max(0, Math.min(1, activity)),
+          escalation_score: escalationScore,
+          escalation,
         },
       }
     })
@@ -355,7 +623,13 @@ function initMapboxLayers() {
       type: 'circle',
       source: 'district-points',
       paint: {
-        'circle-radius': 14,
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['get', 'distress'],
+          0.05, 10,
+          1, 22,
+        ],
         'circle-color': [
           'match', ['get', 'status'],
           'CALM', '#22c55e',
@@ -366,7 +640,63 @@ function initMapboxLayers() {
         ],
         'circle-stroke-width': 2,
         'circle-stroke-color': '#b9b9cc',
-        'circle-opacity': 0.35,
+        'circle-opacity': [
+          'interpolate',
+          ['linear'],
+          ['get', 'distress'],
+          0.05, 0.25,
+          1, 0.62,
+        ],
+      },
+    })
+  }
+
+  if (!map.getLayer('distress-heat')) {
+    map.addLayer({
+      id: 'distress-heat',
+      type: 'heatmap',
+      source: 'district-points',
+      paint: {
+        'heatmap-weight': ['get', 'distress'],
+        'heatmap-intensity': 1.2,
+        'heatmap-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          9, 22,
+          13, 48,
+        ],
+        'heatmap-color': [
+          'interpolate',
+          ['linear'],
+          ['heatmap-density'],
+          0, 'rgba(34,197,94,0)',
+          0.2, 'rgba(34,197,94,0.35)',
+          0.45, 'rgba(234,179,8,0.55)',
+          0.7, 'rgba(249,115,22,0.8)',
+          1, 'rgba(239,68,68,0.95)',
+        ],
+        'heatmap-opacity': 0.9,
+      },
+    })
+  }
+
+  if (!map.getLayer('thermal-hotspots')) {
+    map.addLayer({
+      id: 'thermal-hotspots',
+      type: 'circle',
+      source: 'district-points',
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['get', 'distress'],
+          0.05, 3,
+          1, 10,
+        ],
+        'circle-color': '#ffd7ae',
+        'circle-opacity': 0.75,
+        'circle-blur': 0.25,
       },
     })
   }
@@ -395,7 +725,13 @@ function initMapboxLayers() {
       type: 'circle',
       source: 'agent-points',
       paint: {
-        'circle-radius': 5,
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['get', 'influence'],
+          0, 3,
+          1, 9,
+        ],
         'circle-color': [
           'match', ['get', 'type'],
           'utility_crew', '#60a5fa',
@@ -411,9 +747,25 @@ function initMapboxLayers() {
           'agitator', '#ef4444',
           '#ffffff',
         ],
-        'circle-stroke-width': 1.2,
-        'circle-stroke-color': '#0b0f19',
-        'circle-opacity': 0.95,
+        'circle-stroke-width': [
+          'interpolate',
+          ['linear'],
+          ['get', 'escalation_score'],
+          0, 0.8,
+          1, 2.2,
+        ],
+        'circle-stroke-color': [
+          'case',
+          ['>', ['get', 'escalation_score'], 0.7], '#ffffff',
+          '#0b0f19',
+        ],
+        'circle-opacity': [
+          'interpolate',
+          ['linear'],
+          ['get', 'activity'],
+          0, 0.45,
+          1, 0.98,
+        ],
       },
     })
   }
@@ -447,6 +799,31 @@ function initMapboxLayers() {
       paint: { 'text-color': '#ffaa22' },
     })
   }
+
+  applyMapMode()
+}
+
+function setLayerVisibility(layerId, visible) {
+  if (!map?.getLayer(layerId)) return
+  map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none')
+}
+
+function applyMapMode() {
+  if (!map || !mapReady) return
+  const mode = mapMode.value
+
+  const showDistrict = mode !== 'thermal'
+  const showAgent = mode === 'agents'
+  const showThermal = mode === 'thermal'
+
+  setLayerVisibility('district-fill', showDistrict)
+  setLayerVisibility('district-labels', true)
+  setLayerVisibility('district-links', showDistrict)
+  setLayerVisibility('pku-layer', showDistrict)
+  setLayerVisibility('sensor-layer', showDistrict)
+  setLayerVisibility('agent-markers', showAgent)
+  setLayerVisibility('distress-heat', showThermal)
+  setLayerVisibility('thermal-hotspots', showThermal)
 }
 
 function refreshMapboxSources() {
@@ -457,6 +834,7 @@ function refreshMapboxSources() {
   if (links) links.setData(buildDistrictLinkGeoJSON())
   const agents = map.getSource('agent-points')
   if (agents) agents.setData(buildAgentGeoJSON())
+  applyMapMode()
 }
 
 function render() {
@@ -665,6 +1043,11 @@ watch(() => props.districts, render, { deep: true })
 watch(() => props.plan, render, { deep: true })
 watch(() => props.agentManifest, updateStatus, { deep: true })
 watch(() => props.incidentLog, updateStatus, { deep: true })
+watch(mapMode, () => applyMapMode())
+watch([agentTypeFilter, channelFilter, escalationFilter, activePreset], () => {
+  if (mapMode.value !== 'agents') return
+  updateStatus()
+})
 
 watch(useGeoMode, (nextGeo) => {
   if (!nextGeo && map) {
@@ -715,6 +1098,196 @@ onUnmounted(() => {
   border: 1px solid rgba(245, 158, 11, 0.35);
   padding: 0.25rem 0.45rem;
   border-radius: 4px;
+}
+
+.map-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 12;
+  display: flex;
+  gap: 0.35rem;
+  background: rgba(15, 17, 25, 0.75);
+  border: 1px solid rgba(140, 151, 177, 0.3);
+  padding: 0.3rem;
+  border-radius: 6px;
+  backdrop-filter: blur(8px);
+}
+
+.agent-filters {
+  position: absolute;
+  top: 44px;
+  right: 8px;
+  z-index: 12;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  max-width: min(520px, calc(100% - 16px));
+  background: rgba(15, 17, 25, 0.8);
+  border: 1px solid rgba(140, 151, 177, 0.28);
+  border-radius: 6px;
+  padding: 0.3rem 0.4rem;
+  backdrop-filter: blur(8px);
+}
+
+.agent-filters label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #c9d2ea;
+}
+
+.agent-filters select {
+  border: 1px solid rgba(140, 151, 177, 0.4);
+  background: rgba(22, 25, 37, 0.95);
+  color: #e7ecfb;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-family: var(--font-mono);
+  padding: 0.15rem 0.25rem;
+}
+
+.clear-filter-btn {
+  border: 1px solid rgba(140, 151, 177, 0.45);
+  background: rgba(44, 49, 66, 0.8);
+  color: #d7deef;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.18rem 0.4rem;
+  cursor: pointer;
+}
+
+.clear-filter-btn:hover {
+  background: rgba(73, 83, 110, 0.9);
+}
+
+.filter-divider {
+  color: rgba(140, 151, 177, 0.35);
+  font-size: 0.8rem;
+  user-select: none;
+}
+
+.preset-chip {
+  border: 1px solid rgba(140, 151, 177, 0.35);
+  background: rgba(35, 38, 52, 0.7);
+  color: #c2cbe0;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.18rem 0.44rem;
+  cursor: pointer;
+}
+
+.preset-chip.active {
+  background: rgba(96, 165, 250, 0.22);
+  border-color: rgba(96, 165, 250, 0.7);
+  color: #e8f0ff;
+}
+
+.tt-sparkline {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.4rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border);
+}
+
+.tt-spark-label {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.sparkline-svg {
+  flex-shrink: 0;
+}
+
+.tt-spark-dir {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  white-space: nowrap;
+}
+
+.mode-btn {
+  background: rgba(42, 46, 61, 0.65);
+  border: 1px solid rgba(140, 151, 177, 0.28);
+  color: #cdd3e5;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.42rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.mode-btn.active {
+  background: rgba(92, 185, 255, 0.26);
+  border-color: rgba(92, 185, 255, 0.7);
+  color: #edf7ff;
+}
+
+.map-legend {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 12;
+  width: 280px;
+  background: rgba(15, 17, 25, 0.8);
+  border: 1px solid rgba(140, 151, 177, 0.26);
+  border-radius: 6px;
+  padding: 0.5rem 0.55rem;
+  backdrop-filter: blur(8px);
+}
+
+.legend-title {
+  font-family: var(--font-mono);
+  color: #f4f7ff;
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.2rem;
+}
+
+.legend-note {
+  color: #b5bdd3;
+  font-size: 0.62rem;
+  line-height: 1.35;
+  margin-bottom: 0.35rem;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.25rem;
+}
+
+.legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  flex: 0 0 14px;
+}
+
+.legend-label {
+  color: #d7ddee;
+  font-size: 0.65rem;
 }
 
 .district-tooltip {

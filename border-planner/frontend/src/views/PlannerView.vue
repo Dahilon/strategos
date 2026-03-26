@@ -148,6 +148,29 @@
           <button class="btn btn-secondary" @click="runFullMatrix" :disabled="matrixRunning">
             {{ matrixRunning ? 'RUNNING MATRIX…' : 'COMPARE ALL PLANS' }}
           </button>
+          <button class="btn btn-recommend" @click="predictBest" :disabled="recommending || !currentSimulation">
+            {{ recommending ? 'ANALYZING…' : '⚗ PREDICT BEST CONTAINMENT' }}
+          </button>
+          <button class="btn btn-explain" @click="explainDecision" :disabled="explaining || !Object.keys(matrixRawSims).length">
+            {{ explaining ? 'BUILDING…' : '🔍 EXPLAIN DECISION' }}
+          </button>
+        </div>
+
+        <!-- Recommendation card from auto-predict -->
+        <div class="section-card recommend-card" v-if="recommendation">
+          <div class="section-head">RECOMMENDED CONTAINMENT</div>
+          <div class="rec-top">
+            <span class="rec-plan">{{ recommendation.recommended_label || recommendation.recommended_plan }}</span>
+            <span class="rec-score">{{ (recommendation.containment_score * 100).toFixed(0) }}% coverage</span>
+          </div>
+          <p class="rec-reason">{{ recommendation.reason }}</p>
+          <div class="rec-crits" v-if="recommendation.critical_districts?.length">
+            <span class="rec-crit-label">Critical:</span>
+            <span class="rec-crit-badge" v-for="d in recommendation.critical_districts" :key="d">{{ d }}</span>
+          </div>
+          <button class="btn btn-primary btn-sm" @click="selectPlan(recommendation.recommended_plan)">
+            APPLY RECOMMENDED PLAN
+          </button>
         </div>
 
         <!-- Comparison table -->
@@ -155,6 +178,14 @@
 
         <!-- Recommendation -->
         <Recommendation v-if="comparison" :comparison="comparison" />
+
+        <!-- Explainability panel -->
+        <ExplainPanel
+          v-if="explainData"
+          :data="explainData"
+          :planLabels="planLabelsMap"
+          @export="log('Briefing snapshot exported.')"
+        />
 
         <!-- System log -->
         <SystemLog :logs="logs" />
@@ -165,10 +196,11 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { getConfig, runSimulation, runMatrix } from '../api/planner'
+import { getConfig, runSimulation, runMatrix, recommendContainment, getExplainability } from '../api/planner'
 import DistrictMap from '../components/DistrictMap.vue'
 import PlanComparison from '../components/PlanComparison.vue'
 import Recommendation from '../components/Recommendation.vue'
+import ExplainPanel from '../components/ExplainPanel.vue'
 import SystemLog from '../components/SystemLog.vue'
 
 const props = defineProps({ worldId: String, scenarioId: String })
@@ -184,7 +216,13 @@ const agentTypes = ref({})
 const timeStep = ref(0)
 const running = ref(false)
 const matrixRunning = ref(false)
+const recommending = ref(false)
+const recommendation = ref(null)
 const comparison = ref(null)
+const explaining = ref(false)
+const explainData = ref(null)
+const matrixRawSims = ref({})
+const matrixRawScores = ref({})
 const logs = ref([])
 
 // Stores simulation results keyed by plan_id
@@ -195,6 +233,14 @@ const simulatedPlans = computed(() => new Set(Object.keys(simResults.value)))
 const scenario = computed(() => scenarios.value[props.scenarioId])
 const currentPlan = computed(() => plans.value[selectedPlan.value])
 const currentPlanLabel = computed(() => currentPlan.value?.label || selectedPlan.value)
+
+const planLabelsMap = computed(() => {
+  const m = {}
+  for (const [pid, p] of Object.entries(plans.value)) {
+    m[pid] = p.label || pid
+  }
+  return m
+})
 const currentTimeline = computed(() => simResults.value[selectedPlan.value]?.timeline || [])
 const currentSimulation = computed(() => simResults.value[selectedPlan.value] || null)
 const currentScores = computed(() => simScores.value[selectedPlan.value] || null)
@@ -373,6 +419,10 @@ watch(() => [props.worldId, props.scenarioId], () => {
   simResults.value = {}
   simScores.value = {}
   comparison.value = null
+  recommendation.value = null
+  explainData.value = null
+  matrixRawSims.value = {}
+  matrixRawScores.value = {}
   timeStep.value = 0
   selectedPlan.value = 'baseline'
   logs.value = []
@@ -410,11 +460,61 @@ async function runFullMatrix() {
   try {
     const data = await runMatrix(props.worldId, props.scenarioId, 2, 'agents')
     comparison.value = data.ranked_plans || data.comparison
+
+    // Store raw sim/score data for explainability
+    // Rebuild from individual sims if matrix ran per-plan
+    const rawSims = {}
+    const rawScores = {}
+    for (const [pid, result] of Object.entries(simResults.value)) {
+      rawSims[pid] = [result]
+      rawScores[pid] = [simScores.value[pid]].filter(Boolean)
+    }
+    matrixRawSims.value = rawSims
+    matrixRawScores.value = rawScores
+
     log(`Matrix complete — Best plan: ${comparison.value?.[0]?.plan_id}`)
   } catch (e) {
     log(`ERROR: ${e.message}`)
   } finally {
     matrixRunning.value = false
+  }
+}
+
+async function explainDecision() {
+  explaining.value = true
+  const recPlan = recommendation.value?.recommended_plan || comparison.value?.[0]?.plan_id || null
+  log(`Building explainability report${recPlan ? ' for ' + recPlan : ''}…`)
+  try {
+    // Ensure we have data to explain: use stored matrix data or current sim
+    let sims = { ...matrixRawSims.value }
+    let scores = { ...matrixRawScores.value }
+    // Also include any individually-run sims
+    for (const [pid, result] of Object.entries(simResults.value)) {
+      if (!sims[pid]) sims[pid] = [result]
+      if (!scores[pid] && simScores.value[pid]) scores[pid] = [simScores.value[pid]]
+    }
+    const data = await getExplainability(props.worldId, sims, scores, recPlan)
+    explainData.value = data
+    log(`Explainability report ready — ${data.evidence?.length || 0} evidence items`)
+  } catch (e) {
+    log(`ERROR: ${e.message}`)
+  } finally {
+    explaining.value = false
+  }
+}
+
+async function predictBest() {
+  if (!currentSimulation.value) return
+  recommending.value = true
+  log('Predicting best containment plan…')
+  try {
+    const data = await recommendContainment(props.worldId, currentSimulation.value)
+    recommendation.value = data
+    log(`Recommendation: ${data.recommended_label || data.recommended_plan} (${(data.containment_score * 100).toFixed(0)}% coverage)`)
+  } catch (e) {
+    log(`ERROR: ${e.message}`)
+  } finally {
+    recommending.value = false
   }
 }
 
@@ -638,6 +738,7 @@ onMounted(async () => {
 
 .action-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.6rem;
 }
 .btn {
@@ -663,6 +764,86 @@ onMounted(async () => {
   color: var(--text-secondary);
 }
 .btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+
+.btn-recommend {
+  background: rgba(96, 165, 250, 0.12);
+  border: 1px solid rgba(96, 165, 250, 0.5);
+  color: #93c5fd;
+  font-weight: 600;
+}
+.btn-recommend:hover:not(:disabled) {
+  background: rgba(96, 165, 250, 0.22);
+  border-color: #93c5fd;
+  color: #dbeafe;
+}
+
+.btn-explain {
+  background: rgba(161, 139, 250, 0.12);
+  border: 1px solid rgba(161, 139, 250, 0.5);
+  color: #c4b5fd;
+  font-weight: 600;
+}
+.btn-explain:hover:not(:disabled) {
+  background: rgba(161, 139, 250, 0.22);
+  border-color: #c4b5fd;
+  color: #ede9fe;
+}
+
+.btn-sm {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.65rem;
+  margin-top: 0.5rem;
+}
+
+.recommend-card {
+  border-color: rgba(96, 165, 250, 0.4);
+  background: rgba(96, 165, 250, 0.05);
+}
+.rec-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+.rec-plan {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+.rec-score {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: #60a5fa;
+}
+.rec-reason {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin-bottom: 0.4rem;
+}
+.rec-crits {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.35rem;
+}
+.rec-crit-label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.rec-crit-badge {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #f87171;
+}
 
 .agent-summary {
   display: flex;
